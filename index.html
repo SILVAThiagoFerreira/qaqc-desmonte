@@ -27,13 +27,12 @@
     <main class="app-shell">
       <aside class="control-rail" aria-label="Controles da análise">
         <div class="rail-heading">
-          <span class="eyebrow">Leitura operacional</span>
-          <h2>Configuração</h2>
-          <p>Escolha uma fonte e filtre o que precisa ser verificado.</p>
+          <span class="eyebrow">QAQC de desmonte</span>
+          <h2>Controles</h2>
         </div>
 
         <section class="rail-section rail-source" aria-labelledby="source-title">
-          <div class="section-label" id="source-title"><span>01</span> Fonte</div>
+          <div class="section-label" id="source-title">Fonte</div>
           <label class="field-label" for="file-select">Planilha em análise</label>
           <select id="file-select" class="control-select" disabled>
             <option>Base local de referência</option>
@@ -45,7 +44,7 @@
         </section>
 
         <section class="rail-section" aria-labelledby="filter-title">
-          <div class="section-label" id="filter-title"><span>02</span> Recorte</div>
+          <div class="section-label" id="filter-title">Filtros</div>
           <label class="field-label" for="plan-filter">Plano</label>
           <select id="plan-filter" class="control-select"></select>
           <label class="field-label" for="type-filter">Tipo de desmonte</label>
@@ -56,8 +55,8 @@
         </section>
 
         <section class="rail-section rail-note" aria-labelledby="method-title">
-          <div class="section-label" id="method-title"><span>03</span> Triagem</div>
-          <p>As faixas de atenção são visuais: profundidade ±10%, carga ±20% e tampão ±0,5 m.</p>
+          <div class="section-label" id="method-title">Triagem</div>
+          <p>Visual · profundidade ±10% · carga ±20% · tampão ±0,5.</p>
           <div class="legend-stack" aria-label="Legenda de status">
             <span><i class="legend-dot legend-dot--green"></i>Dentro da faixa</span>
             <span><i class="legend-dot legend-dot--amber"></i>Revisar</span>
@@ -66,17 +65,20 @@
         </section>
 
         <div class="rail-footer">
-          <span class="rail-footer__caption">Fonte configurada</span>
+          <span class="rail-footer__caption">Origem dos dados</span>
           <a href="https://drive.google.com/drive/folders/1Vj6Pdzj7in3ol35NzJCKjLAzA2w5tPOX" target="_blank" rel="noreferrer">Abrir pasta no Drive</a>
         </div>
       </aside>
 
       <section class="workspace" aria-label="Dashboard de QAQC">
-        <section class="hero-panel" aria-labelledby="hero-title">
+        <section class="hero-panel" aria-label="Recorte atual">
           <div class="hero-copy">
-            <span class="eyebrow eyebrow--light">QAQC • perfuração + desmonte</span>
-            <h1 id="hero-title">O desmonte começa<br><em>no furo certo.</em></h1>
-            <p id="hero-story">Lendo profundidade, carga e tampão furo a furo para encontrar onde a execução mudou o plano.</p>
+            <span class="eyebrow eyebrow--light">Recorte atual</span>
+            <div class="hero-signal">
+              <span class="hero-signal__label">Desvio dominante</span>
+              <strong id="hero-focus">—</strong>
+              <span id="hero-focus-delta">—</span>
+            </div>
             <div class="hero-meta">
               <span id="hero-plan">Plano —</span>
               <span class="meta-separator" aria-hidden="true"></span>
@@ -90,22 +92,22 @@
 
         <section class="kpi-strip" aria-label="Resumo do recorte">
           <article class="kpi-card kpi-card--lead">
-            <span class="kpi-label">Furos lidos</span>
+            <span class="kpi-label">Furos</span>
             <strong class="kpi-value" id="kpi-holes">—</strong>
             <span class="kpi-foot" id="kpi-holes-foot">da fonte atual</span>
           </article>
           <article class="kpi-card">
-            <span class="kpi-label">Profundidade média</span>
+            <span class="kpi-label">Profundidade</span>
             <strong class="kpi-value" id="kpi-depth">—</strong>
             <span class="kpi-foot" id="kpi-depth-foot">realizada vs. prevista</span>
           </article>
           <article class="kpi-card">
-            <span class="kpi-label">Carga média</span>
+            <span class="kpi-label">Carga</span>
             <strong class="kpi-value" id="kpi-charge">—</strong>
             <span class="kpi-foot" id="kpi-charge-foot">realizada vs. prevista</span>
           </article>
           <article class="kpi-card kpi-card--attention">
-            <span class="kpi-label">Pontos para revisar</span>
+            <span class="kpi-label">Atenção</span>
             <strong class="kpi-value" id="kpi-attention">—</strong>
             <span class="kpi-foot" id="kpi-attention-foot">triagem visual</span>
           </article>
@@ -115,12 +117,11 @@
           <section class="panel panel--map span-7" aria-labelledby="map-title">
             <div class="panel-header">
               <div>
-                <span class="eyebrow">Onde olhar primeiro</span>
-                <h2 id="map-title">A malha mostra a concentração do desvio</h2>
+                <span class="eyebrow">Onde</span>
+                <h2 id="map-title">Concentração do desvio</h2>
               </div>
               <span class="panel-tag" id="map-tag">—</span>
             </div>
-            <p class="panel-caption">Cada ponto é um furo. A cor compara a execução com o previsto.</p>
             <div class="map-frame" id="hole-map" role="img" aria-label="Mapa esquemático dos furos">
               <div class="loading-state">Montando a malha…</div>
             </div>
@@ -128,15 +129,15 @@
               <span><i class="legend-dot legend-dot--green"></i>Dentro da faixa</span>
               <span><i class="legend-dot legend-dot--amber"></i>Revisar</span>
               <span><i class="legend-dot legend-dot--red"></i>Desvio alto</span>
-              <span class="map-hint">Clique em um furo para abrir o perfil</span>
+              <span class="map-hint">Clique para perfilar</span>
             </div>
           </section>
 
           <section class="panel panel--profile span-5" aria-labelledby="profile-title">
             <div class="panel-header">
               <div>
-                <span class="eyebrow">Leitura de um furo</span>
-                <h2 id="profile-title">Perfil de carga</h2>
+                <span class="eyebrow">O que há dentro</span>
+                <h2 id="profile-title">Perfil do furo</h2>
               </div>
               <button class="hole-chip" id="selected-hole" type="button">Furo —</button>
             </div>
@@ -144,14 +145,37 @@
               <div class="profile-illustration" id="profile-illustration" aria-label="Perfil esquemático do furo selecionado"></div>
               <div class="profile-data" id="profile-data"></div>
             </div>
-            <div class="profile-footnote">Esquema de leitura. Dimensões e massas vêm da planilha selecionada.</div>
+            <div class="profile-footnote">Tracejado = previsto · preenchido = realizado</div>
+          </section>
+
+          <section class="panel panel--scatter span-7" aria-labelledby="scatter-title">
+            <div class="panel-header">
+              <div>
+                <span class="eyebrow">Como</span>
+                <h2 id="scatter-title">Profundidade × carga</h2>
+              </div>
+              <span class="panel-tag" id="scatter-tag">—</span>
+            </div>
+            <div id="scatter-chart" class="scatter-chart" role="img" aria-label="Dispersão dos desvios de profundidade e carga"></div>
+            <div class="chart-legend chart-legend--compact"><span><i class="legend-dot legend-dot--green"></i>Dentro</span><span><i class="legend-dot legend-dot--amber"></i>Revisar</span><span><i class="legend-dot legend-dot--red"></i>Alto</span></div>
+          </section>
+
+          <section class="panel panel--waterfall span-5" aria-labelledby="waterfall-title">
+            <div class="panel-header">
+              <div>
+                <span class="eyebrow">Quantos</span>
+                <h2 id="waterfall-title">Cascata de triagem</h2>
+              </div>
+              <span class="panel-tag panel-tag--quiet" id="waterfall-tag">—</span>
+            </div>
+            <div id="waterfall-chart" class="waterfall-chart" role="img" aria-label="Cascata de distribuição dos status dos furos"></div>
           </section>
 
           <section class="panel panel--compare span-5" aria-labelledby="compare-title">
             <div class="panel-header">
               <div>
                 <span class="eyebrow">Plano × execução</span>
-                <h2 id="compare-title">A execução mudou em três pontos</h2>
+                <h2 id="compare-title">Médias do recorte</h2>
               </div>
             </div>
             <div id="compare-chart" class="compare-chart"></div>
@@ -161,31 +185,30 @@
           <section class="panel panel--ranking span-7" aria-labelledby="ranking-title">
             <div class="panel-header">
               <div>
-                <span class="eyebrow">Prioridade de campo</span>
-                <h2 id="ranking-title">Poucos furos puxam a revisão</h2>
+                <span class="eyebrow">Próxima ação</span>
+                <h2 id="ranking-title">Fila de campo</h2>
               </div>
               <span class="panel-tag panel-tag--quiet" id="ranking-tag">—</span>
             </div>
             <div class="ranking-list" id="ranking-list"></div>
           </section>
 
-          <section class="panel panel--timing span-7" aria-labelledby="timing-title">
+          <section class="panel panel--timing span-12" aria-labelledby="timing-title">
             <div class="panel-header">
               <div>
-                <span class="eyebrow">Sequência de iniciação</span>
-                <h2 id="timing-title">O tempo de detonação abre uma janela</h2>
+                <span class="eyebrow">Quando</span>
+                <h2 id="timing-title">Janela de iniciação</h2>
               </div>
               <span class="panel-tag panel-tag--quiet" id="timing-tag">—</span>
             </div>
-            <p class="panel-caption">Distribuição dos tempos informados por furo, em milissegundos.</p>
             <div class="timing-chart" id="timing-chart"></div>
           </section>
 
           <section class="panel panel--table span-12" aria-labelledby="table-title">
             <div class="panel-header panel-header--table">
               <div>
-                <span class="eyebrow">Registro auditável</span>
-                <h2 id="table-title">Leitura furo a furo</h2>
+                <span class="eyebrow">Conferência</span>
+                <h2 id="table-title">Registro furo a furo</h2>
               </div>
               <label class="search-field" for="hole-search">
                 <span class="sr-only">Buscar furo</span>

@@ -305,6 +305,9 @@
       stemmingPlanned, stemmingActual, stemmingDelta,
       flagged: rows.filter((row) => row.severity !== "green").length,
       critical: rows.filter((row) => row.severity === "red").length,
+      within: rows.filter((row) => row.severity === "green").length,
+      review: rows.filter((row) => row.severity === "amber").length,
+      high: rows.filter((row) => row.severity === "red").length,
       baselineMissing: rows.filter((row) => row.baselineMissing).length,
       delays,
       delayMin: delays.length ? Math.min(...delays) : null,
@@ -382,14 +385,11 @@
     ].filter((item) => Number.isFinite(item.pct));
     const lead = candidates.slice().sort((a, b) => Math.abs(b.pct) - Math.abs(a.pct))[0];
     if (lead && Math.abs(lead.pct) >= 0.02) {
-      $("hero-title").innerHTML = `A execução mudou<br><em>em ${escapeHtml(lead.label)}.</em>`;
-      const direction = lead.delta < 0 ? "abaixo" : "acima";
-      const unitText = lead.unit ? ` ${lead.unit}` : "";
-      const noun = lead.label === "tampão" ? "médio" : "média";
-      $("hero-story").textContent = `${lead.article} ${lead.label} ${noun} ficou ${formatNumber(Math.abs(lead.delta))}${unitText} ${direction} do previsto. Use o mapa para encontrar os furos que puxam a diferença.`;
+      $("hero-focus").textContent = lead.label;
+      $("hero-focus-delta").textContent = `${formatSigned(lead.delta, lead.unit)} vs previsto`;
     } else {
-      $("hero-title").innerHTML = `A execução acompanha<br><em>o plano.</em>`;
-      $("hero-story").textContent = "As médias do recorte estão próximas do previsto. O ranking abaixo mostra as exceções que merecem conferência em campo.";
+      $("hero-focus").textContent = "Dentro da faixa";
+      $("hero-focus-delta").textContent = "sem desvio dominante";
     }
     $("hero-plan").textContent = summary.plans.length ? `Plano ${summary.plans.join(", ")}` : "Plano n.a.";
     $("hero-date").textContent = summary.dates.length ? summary.dates.join(", ") : "Data n.a.";
@@ -398,13 +398,13 @@
 
   function renderKpis(summary) {
     $("kpi-holes").textContent = formatInteger(summary.count);
-    $("kpi-holes-foot").textContent = summary.flagged ? `${formatInteger(summary.flagged)} pontos para revisar` : "Nenhum ponto para revisar";
+    $("kpi-holes-foot").textContent = summary.flagged ? `${formatInteger(summary.flagged)} exceções` : "sem exceções";
     $("kpi-depth").textContent = withUnit(summary.depthActual, UNITS.depth);
-    $("kpi-depth-foot").textContent = `prev. ${withUnit(summary.depthPlanned, UNITS.depth)} · ${formatPercent(summary.depthPct)}`;
+    $("kpi-depth-foot").textContent = `${formatPercent(summary.depthPct)} vs previsto`;
     $("kpi-charge").textContent = withUnit(summary.chargeActual, UNITS.charge);
-    $("kpi-charge-foot").textContent = `prev. ${withUnit(summary.chargePlanned, UNITS.charge)} · ${formatPercent(summary.chargePct)}`;
+    $("kpi-charge-foot").textContent = `${formatPercent(summary.chargePct)} vs previsto`;
     $("kpi-attention").textContent = formatInteger(summary.flagged);
-    $("kpi-attention-foot").textContent = summary.baselineMissing ? `${formatInteger(summary.baselineMissing)} sem previsto` : summary.critical ? `${formatInteger(summary.critical)} com desvio alto` : "triagem visual";
+    $("kpi-attention-foot").textContent = summary.baselineMissing ? `${formatInteger(summary.baselineMissing)} sem previsto` : `${formatInteger(summary.critical)} altos`;
   }
 
   function severityClass(severity) {
@@ -454,6 +454,92 @@
     $("map-tag").textContent = `${formatInteger(coordinateRows.length)} pontos`;
   }
 
+  function renderScatter(rows) {
+    const root = $("scatter-chart");
+    const paired = rows.filter((row) => Number.isFinite(row.depthPct) && Number.isFinite(row.chargePct));
+    if (!paired.length) {
+      root.innerHTML = `<div class="empty-state">Sem pares previsto × realizado para este recorte.</div>`;
+      $("scatter-tag").textContent = "sem pares";
+      return;
+    }
+    const width = 760;
+    const height = 250;
+    const pad = { left: 52, right: 20, top: 18, bottom: 38 };
+    const maxAbs = Math.max(10, ...paired.flatMap((row) => [Math.abs(row.depthPct * 100), Math.abs(row.chargePct * 100)]));
+    const domain = Math.ceil(maxAbs / 10) * 10;
+    const plotWidth = width - pad.left - pad.right;
+    const plotHeight = height - pad.top - pad.bottom;
+    const xPos = (value) => pad.left + ((value + domain) / (domain * 2)) * plotWidth;
+    const yPos = (value) => height - pad.bottom - ((value + domain) / (domain * 2)) * plotHeight;
+    const ticks = [-domain, -domain / 2, 0, domain / 2, domain];
+    const grid = ticks.map((tick) => {
+      const x = xPos(tick);
+      const y = yPos(tick);
+      return `<line class="scatter-grid" x1="${x}" y1="${pad.top}" x2="${x}" y2="${height - pad.bottom}"/><line class="scatter-grid" x1="${pad.left}" y1="${y}" x2="${width - pad.right}" y2="${y}"/><text class="scatter-tick" x="${x}" y="${height - 15}" text-anchor="middle">${formatNumber(tick, 0)}%</text><text class="scatter-tick" x="${pad.left - 9}" y="${y + 3}" text-anchor="end">${formatNumber(tick, 0)}%</text>`;
+    }).join("");
+    const points = paired.map((row) => {
+      const x = xPos(row.depthPct * 100).toFixed(2);
+      const y = yPos(row.chargePct * 100).toFixed(2);
+      const radius = row.severity === "red" ? 5.5 : row.severity === "amber" ? 4.5 : 3.8;
+      return `<circle class="scatter-point scatter-point--${severityClass(row.severity)}" cx="${x}" cy="${y}" r="${radius}" data-hole-id="${escapeHtml(row.id)}" tabindex="0" role="button" aria-label="Furo ${escapeHtml(row.id)}, profundidade ${escapeHtml(formatPercent(row.depthPct))}, carga ${escapeHtml(formatPercent(row.chargePct))}"><title>Furo ${escapeHtml(row.id)} · profundidade ${escapeHtml(formatPercent(row.depthPct))} · carga ${escapeHtml(formatPercent(row.chargePct))}</title></circle>`;
+    }).join("");
+    const zeroX = xPos(0);
+    const zeroY = yPos(0);
+    root.innerHTML = `<svg class="scatter-svg" viewBox="0 0 ${width} ${height}" role="img" aria-label="Dispersão de ${paired.length} furos: profundidade no eixo X e carga no eixo Y"><rect x="0" y="0" width="${width}" height="${height}" fill="#fbfcfb"/>${grid}<line class="scatter-zero" x1="${zeroX}" y1="${pad.top}" x2="${zeroX}" y2="${height - pad.bottom}"/><line class="scatter-zero" x1="${pad.left}" y1="${zeroY}" x2="${width - pad.right}" y2="${zeroY}"/>${points}<text class="scatter-axis-label" x="${width - pad.right}" y="${height - 4}" text-anchor="end">Δ profundidade</text><text class="scatter-axis-label" x="${pad.left}" y="12">Δ carga</text></svg>`;
+    root.querySelectorAll("[data-hole-id]").forEach((node) => {
+      node.addEventListener("click", () => selectHole(node.dataset.holeId));
+      node.addEventListener("keydown", (event) => {
+        if (event.key === "Enter" || event.key === " ") { event.preventDefault(); selectHole(node.dataset.holeId); }
+      });
+    });
+    $("scatter-tag").textContent = `${formatInteger(paired.length)} pares`;
+  }
+
+  function renderWaterfall(rows) {
+    const root = $("waterfall-chart");
+    const total = rows.length;
+    if (!total) {
+      root.innerHTML = `<div class="empty-state">Sem furos no recorte.</div>`;
+      $("waterfall-tag").textContent = "sem dados";
+      return;
+    }
+    const within = rows.filter((row) => row.severity === "green").length;
+    const review = rows.filter((row) => row.severity === "amber").length;
+    const high = rows.filter((row) => row.severity === "red").length;
+    const exceptions = review + high;
+    const steps = [
+      { label: "Lidos", amount: total, kind: "total" },
+      { label: "Dentro", amount: -within, kind: "green" },
+      { label: "Revisar", amount: -review, kind: "amber" },
+      { label: "Alto", amount: -high, kind: "red" },
+    ];
+    const width = 600;
+    const height = 235;
+    const plotTop = 22;
+    const plotBottom = 176;
+    const plotHeight = plotBottom - plotTop;
+    const barWidth = 70;
+    const gap = 42;
+    const xStart = 28;
+    const yFor = (value) => plotBottom - (value / total) * plotHeight;
+    let running = 0;
+    const bars = steps.map((step, index) => {
+      const previous = running;
+      running += step.amount;
+      const low = Math.min(previous, running);
+      const high = Math.max(previous, running);
+      const x = xStart + index * (barWidth + gap);
+      const y = yFor(high);
+      const h = Math.max(3, yFor(low) - y);
+      const connector = index ? `<line class="waterfall-connector" x1="${x - gap}" y1="${yFor(previous)}" x2="${x}" y2="${yFor(previous)}"/>` : "";
+      const label = step.amount < 0 ? `−${formatInteger(Math.abs(step.amount))}` : formatInteger(step.amount);
+      return `${connector}<rect class="waterfall-bar waterfall-bar--${step.kind}" x="${x}" y="${y}" width="${barWidth}" height="${h}" rx="3"><title>${escapeHtml(step.label)} · ${escapeHtml(label)}</title></rect><text class="waterfall-value" x="${x + barWidth / 2}" y="${Math.max(15, y - 7)}" text-anchor="middle">${escapeHtml(label)}</text><text class="waterfall-label" x="${x + barWidth / 2}" y="201" text-anchor="middle">${escapeHtml(step.label)}</text>`;
+    }).join("");
+    const remaining = formatInteger(running);
+    root.innerHTML = `<svg class="waterfall-svg" viewBox="0 0 ${width} ${height}" role="img" aria-label="Cascata de triagem: ${formatInteger(total)} furos lidos e ${formatInteger(exceptions)} exceções"><line class="waterfall-axis" x1="18" y1="${plotBottom}" x2="${width - 18}" y2="${plotBottom}"/>${bars}<text class="waterfall-end" x="${width - 23}" y="${yFor(running) - 8}" text-anchor="end">saldo ${remaining}</text></svg>`;
+    $("waterfall-tag").textContent = `${formatInteger(exceptions)} exceções`;
+  }
+
   function renderProfile(hole) {
     if (!hole) {
       $("selected-hole").textContent = "Furo —";
@@ -463,31 +549,42 @@
     }
     $("selected-hole").textContent = `Furo ${formatInteger(hole.id)}`;
     const total = Math.max(hole.depthActual || 0, hole.depthPlanned || 0, 1);
-    const bodyY = 28;
-    const bodyH = 292;
-    const bodyX = 50;
-    const bodyW = 58;
+    const bodyY = 38;
+    const bodyH = 272;
+    const bodyX = 63;
+    const bodyW = 50;
     const stemHeight = Math.min(bodyH * .45, Math.max(16, (hole.stemmingActual || 0) / total * bodyH));
     const subHeight = Math.min(bodyH * .18, Math.max(12, (hole.subdrill || 0) / total * bodyH));
     const chargeY = bodyY + stemHeight;
     const chargeH = Math.max(24, bodyH - stemHeight - subHeight);
     const plannedH = Math.min(bodyH, Math.max(16, (hole.depthPlanned || total) / total * bodyH));
     const alertStroke = hole.severity === "green" ? "#238a6e" : hole.severity === "amber" ? "#d99527" : "#ed1b2f";
+    const cartridgeCount = Math.max(3, Math.min(8, Math.round(chargeH / 32)));
+    const cartridgeHeight = chargeH / cartridgeCount;
+    const cartridges = Array.from({ length: cartridgeCount }, (_, index) => {
+      const y = chargeY + index * cartridgeHeight + 4;
+      return `<rect x="${bodyX + 8}" y="${y.toFixed(1)}" width="${bodyW - 16}" height="${Math.max(8, cartridgeHeight - 7).toFixed(1)}" rx="3" fill="rgba(255,255,255,.15)" stroke="rgba(255,255,255,.58)" stroke-width=".8"/><circle cx="${bodyX + bodyW / 2}" cy="${(y + Math.max(8, cartridgeHeight - 7) / 2).toFixed(1)}" r="2" fill="#fff" opacity=".78"/>`;
+    }).join("");
+    const plannedY = bodyY + plannedH;
     $("profile-illustration").innerHTML = `
-      <svg class="profile-svg" viewBox="0 0 170 350" role="img" aria-label="Perfil esquemático do furo ${escapeHtml(hole.id)}">
-        <defs><pattern id="profile-grid" width="14" height="14" patternUnits="userSpaceOnUse"><path d="M14 0H0V14" fill="none" stroke="#d9e4e1" stroke-width=".6"/></pattern><linearGradient id="charge-gradient" x1="0" x2="1"><stop offset="0" stop-color="#f08c2b"/><stop offset="1" stop-color="#ed1b2f"/></linearGradient></defs>
-        <rect x="4" y="5" width="162" height="340" rx="7" fill="url(#profile-grid)"/>
-        <text x="12" y="20" fill="#0d62a8" font-family="monospace" font-size="8">FURO ${escapeHtml(hole.id)}</text>
+      <svg class="profile-svg" viewBox="0 0 196 350" role="img" aria-label="Perfil esquemático do furo ${escapeHtml(hole.id)}">
+        <defs><pattern id="profile-grid" width="14" height="14" patternUnits="userSpaceOnUse"><path d="M14 0H0V14" fill="none" stroke="#d9e4e1" stroke-width=".6"/></pattern><linearGradient id="charge-gradient" x1="0" x2="1"><stop offset="0" stop-color="#f7a12f"/><stop offset="1" stop-color="#ed1b2f"/></linearGradient></defs>
+        <rect x="4" y="5" width="188" height="340" rx="8" fill="url(#profile-grid)"/>
+        <text x="13" y="21" fill="#0d62a8" font-family="monospace" font-size="8">FURO ${escapeHtml(hole.id)}</text>
+        <path d="M42 38h92" stroke="#788d8f" stroke-width="1"/><path d="M42 34v8M134 34v8" stroke="#788d8f" stroke-width="1"/>
+        <circle cx="88" cy="45" r="8" fill="#f7faf9" stroke="#1f2f38" stroke-width="1.3"/><circle cx="88" cy="45" r="3" fill="#ed1b2f"/>
         <rect x="${bodyX}" y="${bodyY}" width="${bodyW}" height="${bodyH}" rx="${bodyW / 2}" fill="#f7faf9" stroke="#1f2f38" stroke-width="1.5"/>
         <rect x="${bodyX + 3}" y="${bodyY + 3}" width="${bodyW - 6}" height="${Math.max(plannedH - 6, 12)}" rx="${(bodyW - 6) / 2}" fill="none" stroke="#0d62a8" stroke-width="1.5" stroke-dasharray="4 4"/>
-        <rect x="${bodyX + 6}" y="${bodyY + 5}" width="${bodyW - 12}" height="${Math.max(stemHeight - 5, 9)}" fill="#dfe6e4"/>
-        <rect x="${bodyX + 6}" y="${chargeY}" width="${bodyW - 12}" height="${chargeH}" fill="url(#charge-gradient)" opacity=".86"/>
-        <rect x="${bodyX + 6}" y="${bodyY + bodyH - subHeight}" width="${bodyW - 12}" height="${subHeight}" fill="#52656b" opacity=".9"/>
-        <path d="M${bodyX + bodyW + 9} ${bodyY}h12M${bodyX + bodyW + 15} ${bodyY}v${bodyH}M${bodyX + bodyW + 9} ${bodyY + bodyH}h12" stroke="#8b9b9d" stroke-width="1"/>
-        <text x="${bodyX + bodyW + 22}" y="${bodyY + bodyH / 2}" fill="#607376" font-family="monospace" font-size="8" transform="rotate(90 ${bodyX + bodyW + 22} ${bodyY + bodyH / 2})">${withUnit(hole.depthActual, UNITS.depth)} real.</text>
-        <path d="M${bodyX - 5} ${chargeY}H22" stroke="${alertStroke}" stroke-width="1.4"/><text x="8" y="${chargeY - 4}" fill="${alertStroke}" font-family="monospace" font-size="8">carga</text>
-        <path d="M${bodyX - 5} ${bodyY + stemHeight / 2}H22" stroke="#6c7b7e" stroke-width="1"/><text x="8" y="${bodyY + stemHeight / 2 - 4}" fill="#6c7b7e" font-family="monospace" font-size="8">tampão</text>
-        <text x="12" y="332" fill="#809392" font-family="monospace" font-size="8">linha azul = previsto</text>
+        <rect x="${bodyX + 7}" y="${bodyY + 6}" width="${bodyW - 14}" height="${Math.max(stemHeight - 7, 9)}" fill="#dfe6e4"/>
+        <rect x="${bodyX + 7}" y="${chargeY}" width="${bodyW - 14}" height="${chargeH}" fill="url(#charge-gradient)" opacity=".9"/>
+        <g>${cartridges}</g>
+        <rect x="${bodyX + 7}" y="${bodyY + bodyH - subHeight}" width="${bodyW - 14}" height="${subHeight}" fill="#52656b" opacity=".94"/>
+        <path d="M${bodyX + bodyW + 12} ${bodyY}h16M${bodyX + bodyW + 20} ${bodyY}v${bodyH}M${bodyX + bodyW + 12} ${bodyY + bodyH}h16" stroke="#8b9b9d" stroke-width="1"/>
+        <text x="${bodyX + bodyW + 27}" y="${bodyY + bodyH / 2}" fill="#607376" font-family="monospace" font-size="8" transform="rotate(90 ${bodyX + bodyW + 27} ${bodyY + bodyH / 2})">${withUnit(hole.depthActual, UNITS.depth)} real.</text>
+        <path d="M${bodyX - 7} ${chargeY}H26" stroke="${alertStroke}" stroke-width="1.5"/><circle cx="26" cy="${chargeY}" r="2" fill="${alertStroke}"/><text x="9" y="${chargeY - 5}" fill="${alertStroke}" font-family="monospace" font-size="8">carga</text>
+        <path d="M${bodyX - 7} ${bodyY + stemHeight / 2}H26" stroke="#6c7b7e" stroke-width="1"/><circle cx="26" cy="${bodyY + stemHeight / 2}" r="2" fill="#6c7b7e"/><text x="7" y="${bodyY + stemHeight / 2 - 5}" fill="#6c7b7e" font-family="monospace" font-size="8">tampão</text>
+        <path d="M${bodyX + 5} ${plannedY}h-15" stroke="#0d62a8" stroke-width="1.2" stroke-dasharray="2 2"/><text x="11" y="${Math.min(plannedY + 4, 324)}" fill="#0d62a8" font-family="monospace" font-size="8">previsto</text>
+        <text x="13" y="332" fill="#809392" font-family="monospace" font-size="8">cápsulas / tampão / subfuração</text>
       </svg>`;
     const rows = [
       ["Profundidade", withUnit(hole.depthActual, UNITS.depth), hole.depthDelta],
@@ -573,6 +670,8 @@
     renderKpis(summary);
     renderMap(rows);
     renderProfile(selected);
+    renderScatter(rows);
+    renderWaterfall(rows);
     renderCompare(summary);
     renderRanking(rows);
     renderTiming(rows, summary);

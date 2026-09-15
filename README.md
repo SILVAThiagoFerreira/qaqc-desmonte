@@ -3,7 +3,14 @@
 Dashboard operacional estático para leitura e storytelling de planilhas de
 perfuração/desmonte. A interface usa a estética Enaex/OpenBlast das referências
 fornecidas: topo grafite, vermelho de operação, base clara, filtros compactos e
-ilustrações SVG de malha, furo e perfil de carga.
+ilustrações SVG de malha, furo e perfil de carga. A leitura visual é organizada
+em cinco perguntas curtas: onde está o desvio, como ele se relaciona, quantos
+furos exigem ação, qual é a fila de campo e quando a iniciação acontece.
+
+O painel inclui mapa XY, dispersão de profundidade × carga, cascata de triagem,
+comparação previsto × realizado, ranking de exceções, distribuição dos tempos e
+registro auditável. As faixas são triagem visual e permanecem explícitas na
+interface; unidades ausentes na fonte não são inferidas.
 
 ## O que a base atual entrega
 
