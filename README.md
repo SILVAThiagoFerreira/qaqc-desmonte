@@ -1,159 +1,79 @@
 # QA/QC de Perfuração e Desmonte
 
-Dashboard operacional para avaliar a aderência entre o plano de fogo e a
-execução da perfuração e do carregamento, com classificação de conformidade,
-priorização de verificações e rastreabilidade por furo.
+Dashboard operacional para avaliar a conformidade entre o plano de fogo e a
+execução da perfuração e do carregamento, classificar desvios e rastrear cada
+furo.
 
-## Objetivo
+## Visões
 
-Organizar a leitura de campo em uma sequência curta e técnica:
+- **Micro**: análise por plano de fogo e por furo, com mapa, perfil de
+  carregamento, desvios, prioridades e tabela de controle.
+- **Macro**: comparação consolidada entre desmontes, com indicadores,
+  tendência, desvios médios, composição dos status e resumo por evento.
 
-`Fonte de dados → Recorte → Conformidade → Desvio → Verificação`
+Fluxo de leitura: **Dados → Seleção → Conformidade → Desvios → Verificação**.
 
-O painel apresenta a posição dos furos, o perfil de carregamento selecionado,
-a comparação entre parâmetros planejados e executados, a distribuição dos
-tempos de iniciação e o registro detalhado dos furos.
+## Terminologia e unidades
 
-Os gráficos são operacionais: pontos do mapa, da dispersão e da distribuição
-dos tempos podem ser focados, sobrevoados e selecionados para consultar o
-furo. As barras de classificação filtram a fila de verificação por status.
+- Planejamento: plano de fogo, malha de perfuração, afastamento, espaçamento e
+  subperfuração.
+- Execução: profundidade executada, carga carregada, tampão e tempo de
+  iniciação.
+- Classificação: conforme, em revisão, fora da faixa e não avaliável.
+- Unidades: profundidade, tampão e subperfuração em **m**; carga em **kg**;
+  tempo de iniciação em **ms**. A unidade do diâmetro permanece não informada
+  enquanto a fonte não confirmar sua convenção.
 
-## Vocabulário do painel
+A terminologia foi revisada com apoio dos materiais técnicos fornecidos sobre
+QA/QC em operações de mineração. Esses materiais orientam a linguagem, mas
+não transformam resultados históricos em metas universais.
 
-A interface adota a terminologia de engenharia de perfuração e desmonte:
+## Critérios de avaliação
 
-- `Plano de fogo`, `malha de perfuração`, `afastamento`, `espaçamento` e
-  `subperfuração` para o planejamento e a geometria;
-- `Profundidade executada`, `carga carregada`, `tampão` e `tempo de iniciação`
-  para os registros de execução;
-- `Conforme`, `Em revisão`, `Fora da faixa` e `Sem referência` para a
-  classificação dos furos;
-- `Desvio técnico`, `critério de avaliação` e `rastreabilidade` para a leitura
-  de QA/QC.
+- Profundidade: desvio relativo de até **±10%**.
+- Carga: desvio relativo de até **±20%**.
+- Tampão: diferença absoluta de até **±0,5 m**.
 
-As unidades operacionais configuradas no painel são: profundidade, tampão e
-subperfuração em metros (`m`); carga em quilogramas (`kg`); e tempo de
-iniciação em milissegundos (`ms`). O diâmetro permanece identificado como
-unidade não informada porque a planilha atual não confirma sua convenção.
-
-Os textos foram revisados com base nos seguintes materiais fornecidos para
-referência terminológica e operacional:
-
-- *Desmonte de rocha na Mina do Sossego*;
-- *Mine to plant na mina de Salobo*;
-- *Implementação do Programa QA/QC na Mina de Ferro de Carajás (Serra Norte)
-  com a utilização da Blastscout Probe*.
-
-Os materiais orientam a linguagem, mas não transformam resultados históricos
-em metas universais. O painel mantém os critérios configurados no projeto e
-não infere unidades ausentes na planilha de origem.
-
-## Critério de avaliação
-
-A classificação atual é uma triagem operacional configurada no painel:
-
-- profundidade: desvio relativo de até ±10%;
-- carga: desvio relativo de até ±20%;
-- tampão: desvio absoluto de até ±0,5 m.
-
-O resultado é uma indicação para verificação. Não substitui o plano de fogo,
+Os resultados indicam pontos para verificação. Não substituem o plano de fogo,
 o procedimento operacional, a inspeção de campo ou os critérios normativos
 vigentes.
 
-## Dados publicados
+## Fonte e atualização
 
-O fixture público está em [`data/sample.json`](data/sample.json) e foi extraído
-de `Plano_Fogo_Realizado_PP550926.xlsx`. Ele contém 262 furos do plano 550926,
-com profundidade planejada e executada, cargas, tampão, cotas, coordenadas e
-tempos de iniciação.
+A fonte operacional é a pasta configurada no Google Drive. O carregamento
+inicial, o botão **Atualizar dados** e a consulta automática periódica leem
+as planilhas disponíveis nessa pasta. Quando há mais de um arquivo, o
+dashboard combina os registros e elimina duplicidades pela versão mais
+recente.
 
-O workbook original não é publicado. A base reduzida permanece versionada como
-fallback operacional para situações em que a ponte remota do Drive esteja
-temporariamente indisponível.
+A base local em [`data/sample.json`](data/sample.json) é apenas uma referência
+de inicialização e contingência para manter a tela utilizável durante uma
+resposta lenta ou indisponibilidade temporária do Drive. Os dados remotos
+substituem essa base assim que a integração responde.
 
-## Atualização pelo Google Drive
+A integração lê arquivos `.xlsx`, `.xls` e `.csv` diretamente contidos na
+pasta configurada. Como o dashboard é público, não inclua colunas sensíveis
+nas planilhas de origem.
 
-A pasta operacional já está vinculada ao endpoint publicado em
-`config.js`. O carregamento inicial, o botão **Atualizar dados** e o polling de
-cinco minutos consultam essa ponte e reprocessam os arquivos encontrados na
-pasta configurada. Para evitar uma tela vazia durante uma resposta lenta, o
-fixture local é exibido imediatamente com o status **Atualizando dados**; assim
-que a ponte responde, ele é substituído pelos dados atuais do Drive. Se a
-ponte estiver indisponível, o dashboard mantém os dados visíveis e sinaliza a
-fonte alternativa.
+Para configurar a integração em outro ambiente:
 
-Para recriar a ponte em outra conta ou ambiente:
-
-1. Crie um projeto vazio no Google Apps Script.
-2. Cole [`integrations/google-drive-sync/Code.gs`](integrations/google-drive-sync/Code.gs).
-3. Publique como Web app, executando como o proprietário, com acesso para
+1. Crie um projeto no Google Apps Script.
+2. Publique [`integrations/google-drive-sync/Code.gs`](integrations/google-drive-sync/Code.gs)
+   como aplicativo da Web, executando como proprietário e permitindo acesso a
    qualquer pessoa.
-4. Substitua a URL `/exec` em `driveIndexUrl`, no arquivo `config.js`.
+3. Atualize a URL `/exec` de `driveIndexUrl` em [`config.js`](config.js).
 
-O script lê apenas arquivos `.xlsx`, `.xls` e `.csv` filhos diretos da pasta
-configurada. A atualização não exige novo deploy do GitHub Pages quando o
-conteúdo de uma planilha é alterado no Drive.
+## Filtros e interações
 
-O seletor de arquivo não é exposto na interface operacional. O dashboard
-combina automaticamente as planilhas encontradas na pasta configurada; a
-origem continua sendo atualizada pelo botão **Atualizar dados** no cabeçalho e
-pelo polling periódico.
+Na visão Micro, os filtros combinam nome ou código do plano, tipo, data,
+status e intervalos numéricos. Cada intervalo usa dois marcadores arrastáveis
+e aparece somente quando há variação no recorte. O campo da tabela filtra por
+ID do furo.
 
-O endpoint retorna a planilha em base64 para preservar a leitura privada da
-fonte no servidor Apps Script. Não coloque colunas sensíveis no mesmo arquivo
-se a URL do dashboard for pública.
-
-## Filtros operacionais
-
-A barra lateral concentra o recorte da análise em controles curtos e
-combináveis:
-
-- busca por nome ou código do plano de fogo;
-- tipo de desmonte, data do desmonte e classificação de conformidade;
-- intervalos numéricos com dois marcadores arrastáveis, exibidos apenas para
-  colunas com variação real no recorte carregado e organizados em painéis
-  compactos; a profundidade executada fica aberta como referência inicial.
-
-Os intervalos atualmente disponíveis incluem profundidade planejada e
-executada, carga planejada e carregada, tampão planejado e executado e tempo
-de iniciação, quando essas colunas apresentam valores distintos. Os gráficos,
-indicadores, mapa e tabela são recalculados em conjunto a cada alteração. O
-campo de busca por ID do furo permanece disponível na tabela para uma consulta
-pontual. Quando a origem disponibiliza uma coluna específica de nome do plano,
-a busca também a utiliza; caso contrário, o código da coluna `Plano` permanece
-como identificador exibido.
-
-## Visão macro para gestão
-
-A rota [`macro.html`](macro.html) permanece no mesmo repositório e no mesmo
-deploy do GitHub Pages. Ela consolida os registros por evento operacional,
-considerando data, horário, plano e tipo de desmonte, e mantém a visão por furo
-disponível na página Micro.
-
-A visão macro apresenta:
-
-- quantidade de desmontes e furos consolidados;
-- cobertura do QA/QC, conformidade consolidada e furos fora da faixa;
-- série histórica interativa da conformidade;
-- desvios médios relativos de profundidade e carga e diferença absoluta média
-  do tampão em `m`;
-- distribuição de furos conformes, em revisão e fora da faixa;
-- tabela executiva por desmonte, com data, horário, plano, tipo, contagens,
-  conformidade e desvios;
-- filtros independentes por plano de fogo e data do desmonte.
-
-Os pontos e barras dos gráficos podem ser selecionados por clique ou teclado
-para atualizar a leitura executiva e os valores do evento. A análise usa a
-mesma ponte do Drive e o botão **Atualizar dados** reprocessa todas as
-planilhas encontradas na pasta operacional, sem depender de arquivos locais do
-computador do usuário.
-
-Quando ainda há poucos eventos ou quando os planos não são comparáveis, o
-painel exibe **Comparação inicial** e **Sinal não conclusivo**. Isso evita
-classificar automaticamente uma diferença entre planos distintos como melhora
-ou piora do processo. À medida que novos desmontes comparáveis forem
-incorporados ao Drive, a série passa a suportar a leitura de melhora, piora ou
-estabilidade frente ao evento anterior.
+Os pontos do mapa, da dispersão, dos tempos de iniciação e da visão Macro são
+selecionáveis por clique ou teclado. Dicas contextuais mostram o ponto;
+as barras de classificação filtram a fila de verificação. A atualização
+recalcula indicadores, gráficos, mapa e tabelas em conjunto.
 
 ## Desenvolvimento local
 
@@ -161,18 +81,13 @@ estabilidade frente ao evento anterior.
 npm install
 npm test
 npm run check
-python scripts/extract_workbook.py `
-  --input ".\MODELO DE BASE\Plano_Fogo_Realizado_PP550926.xlsx" `
-  --output ".\data\sample.json"
 python -m http.server 4173
 ```
 
-Acesse `http://localhost:4173/`. Para testar um endpoint do Drive sem alterar
-o repositório, use `http://localhost:4173/?drive=<URL_ENCODED_DO_ENDPOINT>`.
+Acesse `http://localhost:4173/`. Para testar uma integração do Drive sem
+alterar o repositório, acrescente `?drive=<URL_ENCODED_DA_INTEGRACAO>` à rota.
 
-## Validação
-
-Antes de publicar uma alteração, execute:
+Antes de publicar, execute:
 
 ```powershell
 npm test
@@ -181,33 +96,21 @@ node --check config.js
 git diff --check
 ```
 
-O teste valida a existência da aba `Dados dos Furos`, os 262 registros, os
-campos obrigatórios, a unicidade dos IDs, a configuração das unidades e a
-presença estrutural da visão macro.
-
-Também é necessário abrir a aplicação servida por HTTP e conferir:
-
-- carregamento da base, indicadores e gráficos;
-- filtros, seleção de furos, tooltips e tabela;
-- filtro por status acionado pela distribuição da conformidade;
-- acentuação, capitalização e mensagens de estado;
-- comportamento em desktop e em viewport móvel;
-- ausência de overflow horizontal e de erros no console.
-
-Na visão macro, conferir também a quantidade de eventos, o estado de
-comparabilidade, a seleção interativa dos pontos e barras, os filtros de plano
-e data e a atualização pelo Drive.
+Também confira no navegador: carregamento remoto, atualização, filtros,
+seleção de furos, dicas contextuais, tabela, acentuação, viewport móvel, ausência de
+rolagem horizontal involuntária e ausência de erros no console. Na visão Macro,
+confira a seleção de pontos e barras, os filtros de plano e data e o estado de
+comparabilidade entre eventos.
 
 ## Publicação
 
 O workflow [`.github/workflows/pages.yml`](.github/workflows/pages.yml) publica
-a raiz da branch `main` no GitHub Pages após cada push.
+a branch `main` no GitHub Pages.
 
-Repositório: `SILVAThiagoFerreira/qaqc-desmonte`
-Página: <https://silvathiagoferreira.github.io/qaqc-desmonte/>
+- Repositório: `SILVAThiagoFerreira/qaqc-desmonte`
+- Micro: <https://silvathiagoferreira.github.io/qaqc-desmonte/>
+- Macro: <https://silvathiagoferreira.github.io/qaqc-desmonte/macro.html>
 
-A publicação só deve ser considerada concluída quando o workflow **Deploy
-QAQC dashboard to GitHub Pages** estiver concluído com sucesso e as rotas
-públicas `/` e `/macro.html` carregarem a mesma versão de `index.html`,
-`macro.html`, `styles.css`, `app.js`, `macro.js`, `config.js` e
-`data/sample.json` do commit publicado.
+A publicação só é considerada concluída quando o workflow **Deploy QAQC
+dashboard to GitHub Pages** termina com sucesso e as duas rotas carregam os
+arquivos do commit publicado.

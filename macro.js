@@ -257,9 +257,9 @@
       const callback = `qaqcMacroCallback_${Date.now()}_${Math.random().toString(36).slice(2)}`;
       const script = document.createElement("script");
       const cleanup = () => { delete window[callback]; script.remove(); };
-      const timeout = window.setTimeout(() => { cleanup(); reject(new Error("Tempo esgotado ao acessar a fonte Drive.")); }, 15000);
+      const timeout = window.setTimeout(() => { cleanup(); reject(new Error("Tempo excedido ao acessar a fonte do Drive.")); }, 15000);
       window[callback] = (value) => { window.clearTimeout(timeout); cleanup(); resolve(value); };
-      script.onerror = () => { window.clearTimeout(timeout); cleanup(); reject(new Error("Não foi possível acessar o endpoint Drive.")); };
+      script.onerror = () => { window.clearTimeout(timeout); cleanup(); reject(new Error("Não foi possível acessar a conexão com o Drive.")); };
       script.src = appendParams(url, { callback });
       document.head.appendChild(script);
     });
@@ -271,7 +271,7 @@
       const response = await fetch(target, { cache: "no-store" });
       if (!response.ok) throw new Error(`HTTP ${response.status}`);
       const payload = JSON.parse(await response.text());
-      if (payload.ok === false) throw new Error(payload.error || "A fonte devolveu um erro de leitura.");
+      if (payload.ok === false) throw new Error(payload.error || "A fonte não pôde ser lida.");
       return payload;
     } catch (error) {
       return fetchJsonp(target);
@@ -286,7 +286,7 @@
   }
 
   function workbookToPayload(arrayBuffer, meta = {}) {
-    if (!window.XLSX) throw new Error("Leitor XLSX indisponível no site.");
+    if (!window.XLSX) throw new Error("O leitor de planilhas está indisponível.");
     const workbook = window.XLSX.read(arrayBuffer, { type: "array", cellDates: false });
     const sheets = {};
     workbook.SheetNames.forEach((name) => {
@@ -299,11 +299,11 @@
   async function fetchRemoteFile(endpoint, file) {
     if (file.url) {
       const response = await fetch(appendParams(file.url, { t: Date.now() }), { cache: "no-store" });
-      if (!response.ok) throw new Error(`Download indisponível (HTTP ${response.status}).`);
+      if (!response.ok) throw new Error(`Não foi possível baixar a planilha (HTTP ${response.status}).`);
       return workbookToPayload(await response.arrayBuffer(), file);
     }
     const payload = await fetchJson(endpoint, { action: "download", id: file.id });
-    if (!payload.base64) throw new Error("A fonte não retornou o conteúdo da planilha.");
+    if (!payload.base64) throw new Error("A fonte não retornou a planilha.");
     return workbookToPayload(base64ToBytes(payload.base64), file);
   }
 
@@ -330,8 +330,8 @@
     const holes = state.dataset?.holes || [];
     const plans = [...new Set(holes.map((row) => row.plan).filter(Boolean))].sort((a, b) => String(a).localeCompare(String(b), "pt-BR", { numeric: true }));
     const dates = [...new Set(holes.map((row) => dateKey(row.date)).filter(Boolean))].sort((a, b) => dateOrder(b) - dateOrder(a));
-    setSelectOptions($("macro-plan-filter"), plans, "Todos os planos de fogo");
-    setSelectOptions($("macro-date-filter"), dates, "Todas as datas de desmonte");
+    setSelectOptions($("macro-plan-filter"), plans, "Todos os planos");
+    setSelectOptions($("macro-date-filter"), dates, "Todas as datas");
     state.filters.plan = $("macro-plan-filter").value;
     state.filters.date = $("macro-date-filter").value;
   }
@@ -406,17 +406,18 @@
   }
 
   function clearMacroContent() {
-    ["trend-chart", "deviation-chart", "status-chart"].forEach((id) => { $(id).innerHTML = `<div class="empty-state">Nenhum desmonte corresponde ao recorte atual.</div>`; });
-    $("macro-table-body").innerHTML = `<tr><td colspan="13"><div class="empty-state">Nenhum desmonte corresponde ao recorte atual.</div></td></tr>`;
+    ["trend-chart", "deviation-chart", "status-chart"].forEach((id) => { $(id).innerHTML = `<div class="empty-state">Nenhum desmonte atende aos filtros selecionados.</div>`; });
+    $("macro-table-body").innerHTML = `<tr><td colspan="13"><div class="empty-state">Nenhum desmonte atende aos filtros selecionados.</div></td></tr>`;
     ["macro-scope", "macro-kpi-events", "macro-kpi-holes", "macro-kpi-coverage", "macro-kpi-compliance", "macro-kpi-outside", "macro-latest", "macro-previous", "macro-change", "trend-tag", "deviation-tag", "status-tag", "macro-table-tag"].forEach((id) => { if ($(id)) $(id).textContent = "—"; });
     $("macro-kpi-events-foot").textContent = "—";
     $("macro-kpi-holes-foot").textContent = "—";
     $("macro-kpi-coverage-foot").textContent = "—";
     $("macro-kpi-compliance-foot").textContent = "—";
     $("macro-kpi-outside-foot").textContent = "—";
-    $("macro-table-footer").textContent = "Sem registros no recorte";
+    $("macro-table-footer").textContent = "Nenhum registro no recorte selecionado.";
     $("macro-direction").textContent = "Sem dados";
-    $("macro-direction-note").textContent = "Ajuste os filtros para continuar.";
+    $("macro-direction-note").textContent = "Revise os filtros para exibir dados.";
+    $("macro-latest-label").textContent = "Selecionado";
     $("macro-insight-title").textContent = "Sem dados no recorte";
     $("macro-insight-copy").textContent = "Nenhum desmonte atende aos filtros selecionados.";
   }
@@ -430,35 +431,39 @@
     $("macro-kpi-events").textContent = formatInteger(groups.length);
     $("macro-kpi-events-foot").textContent = `${formatInteger(new Set(groups.map((group) => group.date)).size)} ${new Set(groups.map((group) => group.date)).size === 1 ? "data" : "datas"} no recorte`;
     $("macro-kpi-holes").textContent = formatInteger(rows.length);
-    $("macro-kpi-holes-foot").textContent = `${formatInteger(evaluable)} furos avaliáveis`;
+    $("macro-kpi-holes-foot").textContent = `${formatInteger(evaluable)} avaliáveis`;
     $("macro-kpi-coverage").textContent = formatRate(rows.length ? evaluable / rows.length : null);
-    $("macro-kpi-coverage-foot").textContent = `${formatInteger(evaluable)} de ${formatInteger(rows.length)} com referência e execução`;
+    $("macro-kpi-coverage-foot").textContent = `${formatInteger(evaluable)}/${formatInteger(rows.length)} com referência e execução`;
     $("macro-kpi-compliance").textContent = formatRate(evaluable ? within / evaluable : null);
-    $("macro-kpi-compliance-foot").textContent = `${formatInteger(within)} de ${formatInteger(evaluable)} furos avaliáveis`;
+    $("macro-kpi-compliance-foot").textContent = `${formatInteger(within)}/${formatInteger(evaluable)} avaliáveis`;
     $("macro-kpi-outside").textContent = formatInteger(outside);
     $("macro-kpi-outside-foot").textContent = `${formatRate(rows.length ? outside / rows.length : null)} do recorte`;
   }
 
   function renderExecutive(groups) {
-    const latest = groups[groups.length - 1];
-    const previous = groups.length > 1 ? groups[groups.length - 2] : null;
+    const latestIndex = groups.length - 1;
+    const selectedIndex = groups.findIndex((group) => group.key === state.selectedGroupKey);
+    const focusIndex = selectedIndex >= 0 ? selectedIndex : latestIndex;
+    const latest = groups[focusIndex];
+    const previous = focusIndex > 0 ? groups[focusIndex - 1] : null;
     const direction = $("macro-direction");
     direction.className = "";
     if (!latest) return;
+    $("macro-latest-label").textContent = focusIndex === latestIndex ? "Mais recente" : "Selecionado";
     $("macro-latest").textContent = eventContext(latest);
     $("macro-previous").textContent = previous ? `${formatRate(previous.compliance)}` : "Sem comparação";
     if (!previous || !Number.isFinite(latest.compliance) || !Number.isFinite(previous.compliance)) {
       direction.textContent = "Sem histórico";
-      $("macro-direction-note").textContent = "A tendência será calculada com ao menos dois desmontes avaliáveis.";
+    $("macro-direction-note").textContent = "Mínimo: dois desmontes avaliáveis.";
       $("macro-change").textContent = "N/D";
       $("macro-insight-title").textContent = "Histórico em formação";
-      $("macro-insight-copy").textContent = `O recorte atual apresenta ${formatInteger(groups.length)} desmonte. A comparação ganha consistência à medida que novos registros do Drive forem incorporados.`;
+      $("macro-insight-copy").textContent = `${formatInteger(groups.length)} ${groups.length === 1 ? "desmonte" : "desmontes"} no recorte. Tendência em formação.`;
       return;
     }
     const change = latest.compliance - previous.compliance;
     const differentPlan = latest.plan !== previous.plan;
     const differentType = latest.type !== previous.type;
-    const initialComparison = groups.length < 3 && (differentPlan || differentType);
+    const initialComparison = differentPlan || differentType;
     if (initialComparison) {
       const comparisonReason = differentPlan && differentType ? "planos e tipos diferentes" : differentPlan ? "planos diferentes" : "tipos diferentes";
       direction.textContent = "Comparação inicial";
@@ -466,7 +471,7 @@
       $("macro-direction-note").textContent = `${formatPercentagePoints(change)} · ${comparisonReason}`;
       $("macro-change").textContent = formatPercentagePoints(change);
       $("macro-insight-title").textContent = "Sinal não conclusivo";
-      $("macro-insight-copy").textContent = `A conformidade variou ${formatMagnitudePoints(change)} entre os eventos ${eventContext(previous)} e ${eventContext(latest)}. Como há ${comparisonReason}, o resultado deve orientar o acompanhamento, mas não ser tratado como melhoria ou piora histórica comprovada.`;
+      $("macro-insight-copy").textContent = `Variação de ${formatMagnitudePoints(change)} entre ${eventContext(previous)} e ${eventContext(latest)}. Há ${comparisonReason}; use para acompanhamento, não como tendência.`;
       return;
     }
     const tolerance = 0.005;
@@ -474,14 +479,14 @@
     const worsening = change < -tolerance;
     direction.textContent = improving ? "Melhora" : worsening ? "Piora" : "Estável";
     direction.classList.add(improving ? "macro-direction--positive" : worsening ? "macro-direction--negative" : "macro-direction--neutral");
-    $("macro-direction-note").textContent = `${formatPercentagePoints(change)} frente ao desmonte anterior`;
+    $("macro-direction-note").textContent = `${formatPercentagePoints(change)} vs. anterior`;
     $("macro-change").textContent = formatPercentagePoints(change);
-    $("macro-insight-title").textContent = improving ? "Conformidade em recuperação" : worsening ? "Conformidade requer atenção" : "Conformidade estável";
+    $("macro-insight-title").textContent = improving ? "Conformidade em melhora" : worsening ? "Conformidade requer atenção" : "Conformidade estável";
     $("macro-insight-copy").textContent = improving
-      ? `O desmonte ${latest.plan} apresentou melhora de ${formatPercentagePoints(change)} na conformidade em relação ao desmonte anterior.`
+      ? `Melhora de ${formatPercentagePoints(change)} no desmonte ${latest.plan} frente ao anterior.`
       : worsening
-        ? `O desmonte ${latest.plan} apresentou redução de ${formatMagnitudePoints(change)} na conformidade em relação ao desmonte anterior. Priorize a análise dos desvios de execução.`
-        : `A conformidade variou menos de 0,5 p.p. entre os dois últimos desmontes. Mantenha o acompanhamento dos desvios médios.`;
+        ? `Queda de ${formatMagnitudePoints(change)} no desmonte ${latest.plan}. Revise os desvios de execução.`
+        : "Variação inferior a 0,5 p.p. entre os dois últimos desmontes.";
   }
 
   function tooltipText(group) {
@@ -525,8 +530,8 @@
   function renderTrendChart(groups) {
     const root = $("trend-chart");
     const width = 860;
-    const height = 310;
-    const margin = { top: 26, right: 24, bottom: 58, left: 55 };
+    const height = 280;
+    const margin = { top: 24, right: 20, bottom: 54, left: 50 };
     const plotWidth = width - margin.left - margin.right;
     const plotHeight = height - margin.top - margin.bottom;
     const xFor = (index) => groups.length === 1 ? margin.left + plotWidth / 2 : margin.left + (plotWidth * index) / (groups.length - 1);
@@ -555,8 +560,8 @@
   function renderDeviationChart(groups) {
     const root = $("deviation-chart");
     const width = 860;
-    const height = 326;
-    const margin = { top: 28, right: 24, bottom: 66, left: 58 };
+    const height = 280;
+    const margin = { top: 26, right: 20, bottom: 58, left: 55 };
     const plotWidth = width - margin.left - margin.right;
     const plotHeight = height - margin.top - margin.bottom;
     const values = groups.flatMap((group) => [group.depthPct, group.chargePct].filter(Number.isFinite).map((value) => Math.abs(value * 100)));
@@ -581,7 +586,7 @@
       return `${buildBar(group.depthPct, -barWidth - 2, "Desvio de profundidade", "macro-bar--depth")}${buildBar(group.chargePct, 2, "Desvio de carga", "macro-bar--charge")}<text class="macro-x-label" x="${x}" y="${height - 37}" text-anchor="middle"><tspan x="${x}" dy="0">${escapeHtml(group.plan)}</tspan><tspan x="${x}" dy="14">${escapeHtml(group.date)}</tspan></text>`;
     }).join("");
     const focus = groups.find((group) => group.key === state.selectedGroupKey) || groups[groups.length - 1];
-    const readout = focus ? `<div class="macro-deviation-readout"><span>${escapeHtml(eventContext(focus))}</span><strong>Profundidade ${formatSignedPercent(focus.depthPct)} · Carga ${formatSignedPercent(focus.chargePct)} · Tampão |Δ| ${Number.isFinite(focus.stemmingAbs) ? `${formatNumber(focus.stemmingAbs)} ${UNITS.stemming}` : "N/D"}</strong></div>` : "";
+    const readout = focus ? `<div class="macro-deviation-readout"><span>${escapeHtml(eventContext(focus))}</span><strong>Profundidade ${formatSignedPercent(focus.depthPct)} · Carga ${formatSignedPercent(focus.chargePct)} · Tampão: diferença absoluta média ${Number.isFinite(focus.stemmingAbs) ? `${formatNumber(focus.stemmingAbs)} ${UNITS.stemming}` : "N/D"}</strong></div>` : "";
     root.innerHTML = `<svg class="macro-svg" viewBox="0 0 ${width} ${height}" role="img" aria-label="Desvios médios de profundidade e carga por desmonte"><g>${grid}</g><line class="macro-zero-line" x1="${margin.left}" y1="${zero}" x2="${width - margin.right}" y2="${zero}"/><text class="macro-chart-key macro-chart-key--depth" x="${margin.left}" y="15">Profundidade</text><text class="macro-chart-key macro-chart-key--charge" x="${margin.left + 110}" y="15">Carga</text>${bars}</svg>${readout}`;
     bindGroupInteractions(root);
   }
@@ -602,9 +607,9 @@
     $("macro-table-body").innerHTML = ordered.map((group) => {
       const index = groups.findIndex((item) => item.key === group.key);
       const selected = state.selectedGroupKey === group.key ? " class=\"macro-row--selected\"" : "";
-      return `<tr${selected} data-group-index="${index}"><td data-label="Data"><button class="macro-row-button" type="button" data-group-index="${index}">${escapeHtml(group.date)}</button></td><td data-label="Horário">${escapeHtml(group.time === "N/D" ? "—" : group.time)}</td><td data-label="Plano de fogo">${escapeHtml(group.plan)}</td><td data-label="Tipo">${escapeHtml(group.type === "N/D" ? "—" : group.type)}</td><td data-label="Furos">${formatInteger(group.holes)}</td><td data-label="Conformes">${formatInteger(group.within)}</td><td data-label="Em revisão">${formatInteger(group.review)}</td><td data-label="Fora da faixa">${formatInteger(group.outside)}</td><td data-label="Não avaliáveis">${formatInteger(group.notEvaluable)}</td><td data-label="Conformidade">${formatRate(group.compliance)}</td><td data-label="Desvio de profundidade">${formatSignedPercent(group.depthPct)}</td><td data-label="Desvio de carga">${formatSignedPercent(group.chargePct)}</td><td data-label="Desvio de tampão">${Number.isFinite(group.stemmingAbs) ? `${formatNumber(group.stemmingAbs)} ${UNITS.stemming}` : "N/D"}</td></tr>`;
+      return `<tr${selected} data-group-index="${index}"><td data-label="Data"><button class="macro-row-button" type="button" data-group-index="${index}">${escapeHtml(group.date)}</button></td><td data-label="Horário">${escapeHtml(group.time === "N/D" ? "—" : group.time)}</td><td data-label="Plano de fogo">${escapeHtml(group.plan)}</td><td data-label="Tipo de desmonte">${escapeHtml(group.type === "N/D" ? "—" : group.type)}</td><td data-label="Total de furos">${formatInteger(group.holes)}</td><td data-label="Conformes">${formatInteger(group.within)}</td><td data-label="Em revisão">${formatInteger(group.review)}</td><td data-label="Fora da faixa">${formatInteger(group.outside)}</td><td data-label="Não avaliáveis">${formatInteger(group.notEvaluable)}</td><td data-label="Conformidade">${formatRate(group.compliance)}</td><td data-label="Desvio de profundidade (%)">${formatSignedPercent(group.depthPct)}</td><td data-label="Desvio de carga (%)">${formatSignedPercent(group.chargePct)}</td><td data-label="Diferença absoluta média do tampão (m)">${Number.isFinite(group.stemmingAbs) ? `${formatNumber(group.stemmingAbs)} ${UNITS.stemming}` : "N/D"}</td></tr>`;
     }).join("");
-    $("macro-table-footer").textContent = `${formatInteger(groups.length)} ${groups.length === 1 ? "desmonte" : "desmontes"} · clique em uma linha para atualizar a leitura executiva`;
+    $("macro-table-footer").textContent = `${formatInteger(groups.length)} ${groups.length === 1 ? "desmonte" : "desmontes"} · clique na linha para atualizar a síntese`;
     $("macro-table-body").querySelectorAll(".macro-row-button").forEach((button) => button.addEventListener("click", () => {
       const group = groups[Number(button.dataset.groupIndex)];
       if (group) { state.selectedGroupKey = group.key; renderAll(); }
@@ -620,7 +625,7 @@
     renderKpis(groups);
     renderExecutive(groups);
     $("trend-tag").textContent = `${formatInteger(groups.length)} ${groups.length === 1 ? "desmonte" : "desmontes"}`;
-    $("deviation-tag").textContent = `${formatInteger(groups.length)} ${groups.length === 1 ? "ponto" : "pontos"}`;
+    $("deviation-tag").textContent = `${formatInteger(groups.length)} ${groups.length === 1 ? "desmonte" : "desmontes"}`;
     $("status-tag").textContent = `${formatInteger(groups.reduce((sum, group) => sum + group.holes, 0))} furos`;
     $("macro-table-tag").textContent = `${formatInteger(groups.length)} ${groups.length === 1 ? "desmonte" : "desmontes"}`;
     renderTrendChart(groups);
@@ -698,7 +703,7 @@
         showToast(`${error.message || "Fonte Drive indisponível."} Dados visíveis foram mantidos.`, true);
       } else {
         try { await loadSample("Falha na fonte · usando fonte local"); } catch { state.sourceKind = "error"; state.sourceLabel = "Falha ao carregar as fontes"; renderSourceStatus(); }
-        showToast(error.message || "Fonte indisponível; fonte local carregada.", true);
+        showToast(error.message || "Fonte indisponível; base local carregada.", true);
       }
     } finally {
       state.loading = false;

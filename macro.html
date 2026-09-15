@@ -7,7 +7,7 @@
     <meta name="description" content="Visão macro de desempenho de QA/QC dos desmontes de perfuração e desmonte.">
     <title>QA/QC — Visão macro</title>
     <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' fill='%23172a32'/%3E%3Cpath d='M14 44 32 14l18 30H38l-6-11-6 11H14Z' fill='%23df2338'/%3E%3C/svg%3E">
-    <link rel="stylesheet" href="styles.css?v=1.7.1">
+    <link rel="stylesheet" href="styles.css?v=1.8.0">
   </head>
   <body class="macro-page">
     <header class="topbar">
@@ -23,7 +23,7 @@
       <div class="topbar__context">
         <span class="live-dot" aria-hidden="true"></span>
         <span id="macro-top-status">Carregando dados</span>
-        <span class="topbar__version">v1.7.1</span>
+        <span class="topbar__version">v1.8.0</span>
         <button class="topbar__button" id="macro-refresh-data" type="button">Atualizar dados</button>
       </div>
     </header>
@@ -31,12 +31,12 @@
     <main class="macro-shell">
       <section class="macro-intro" aria-labelledby="macro-title">
         <div>
-          <span class="eyebrow">Gestão operacional</span>
+          <span class="eyebrow">Visão macro</span>
           <h1 id="macro-title">Desempenho dos desmontes</h1>
-          <p>Compare a evolução da conformidade e dos desvios entre os planos de fogo para orientar a gestão da operação.</p>
+          <p>Acompanhe a aderência do plano de fogo por desmonte.</p>
         </div>
         <div class="macro-intro__signal" aria-live="polite">
-          <span class="macro-intro__label">Leitura do período</span>
+          <span class="macro-intro__label">Sinal</span>
           <strong id="macro-direction">—</strong>
           <span id="macro-direction-note">Aguardando dados históricos</span>
         </div>
@@ -44,45 +44,45 @@
 
       <section class="macro-toolbar" aria-label="Filtros da visão macro">
         <div class="macro-toolbar__summary">
-          <span class="eyebrow">Recorte macro</span>
-          <strong id="macro-scope">Carregando desmontes</strong>
+          <span class="eyebrow">Filtros</span>
+          <strong id="macro-scope">Carregando…</strong>
         </div>
         <div class="macro-toolbar__controls">
           <label class="macro-field" for="macro-plan-filter">
-            <span>Plano de fogo</span>
+            <span>Plano</span>
             <select id="macro-plan-filter" class="control-select"></select>
           </label>
           <label class="macro-field" for="macro-date-filter">
-            <span>Data do desmonte</span>
+            <span>Data</span>
             <select id="macro-date-filter" class="control-select"></select>
           </label>
-          <button class="text-button text-button--toolbar" id="macro-clear-filters" type="button">Restaurar filtros</button>
+          <button class="text-button text-button--toolbar" id="macro-clear-filters" type="button">Limpar filtros</button>
         </div>
       </section>
 
       <section class="kpi-strip macro-kpis" aria-label="Indicadores macro">
         <article class="kpi-card kpi-card--lead">
-          <span class="kpi-label">Desmontes avaliados</span>
+          <span class="kpi-label">Desmontes</span>
           <strong class="kpi-value" id="macro-kpi-events">—</strong>
           <span class="kpi-foot" id="macro-kpi-events-foot">—</span>
         </article>
         <article class="kpi-card">
-          <span class="kpi-label">Furos consolidados</span>
+          <span class="kpi-label">Furos</span>
           <strong class="kpi-value" id="macro-kpi-holes">—</strong>
           <span class="kpi-foot" id="macro-kpi-holes-foot">—</span>
         </article>
         <article class="kpi-card">
-          <span class="kpi-label">Cobertura do QA/QC</span>
+          <span class="kpi-label">Cobertura QA/QC</span>
           <strong class="kpi-value" id="macro-kpi-coverage">—</strong>
           <span class="kpi-foot" id="macro-kpi-coverage-foot">—</span>
         </article>
         <article class="kpi-card">
-          <span class="kpi-label">Conformidade consolidada</span>
+          <span class="kpi-label">Conformidade</span>
           <strong class="kpi-value" id="macro-kpi-compliance">—</strong>
           <span class="kpi-foot" id="macro-kpi-compliance-foot">—</span>
         </article>
         <article class="kpi-card kpi-card--attention">
-          <span class="kpi-label">Furos fora da faixa</span>
+          <span class="kpi-label">Fora da faixa</span>
           <strong class="kpi-value" id="macro-kpi-outside">—</strong>
           <span class="kpi-foot" id="macro-kpi-outside-foot">—</span>
         </article>
@@ -92,20 +92,20 @@
         <section class="panel macro-panel macro-panel--trend" aria-labelledby="trend-title">
           <div class="panel-header">
             <div>
-              <span class="eyebrow">Série histórica</span>
-              <h2 id="trend-title">Evolução da conformidade</h2>
+              <span class="eyebrow">Tendência</span>
+              <h2 id="trend-title">Conformidade por desmonte</h2>
             </div>
             <span class="panel-tag" id="trend-tag">—</span>
           </div>
           <div class="macro-chart macro-chart--trend" id="trend-chart" role="img" aria-label="Gráfico de evolução da conformidade por desmonte"></div>
-          <div class="chart-legend chart-legend--compact"><span><i class="legend-line legend-line--blue"></i>Conformidade</span><span class="macro-chart-hint">Clique em um ponto para detalhar o desmonte</span></div>
+          <div class="chart-legend chart-legend--compact"><span><i class="legend-line legend-line--blue"></i>Conformidade</span><span class="macro-chart-hint">Clique para detalhar</span></div>
         </section>
 
         <section class="panel macro-panel macro-panel--insight" aria-labelledby="insight-title">
           <div class="panel-header">
             <div>
-              <span class="eyebrow">Decisão gerencial</span>
-              <h2 id="insight-title">Leitura executiva</h2>
+              <span class="eyebrow">Síntese</span>
+              <h2 id="insight-title">Leitura gerencial</h2>
             </div>
           </div>
           <div class="macro-insight" id="macro-insight" aria-live="polite">
@@ -113,8 +113,8 @@
             <p id="macro-insight-copy">O comparativo será calculado assim que os desmontes forem carregados.</p>
           </div>
           <dl class="macro-comparison">
-            <div><dt>Desmonte mais recente</dt><dd id="macro-latest">—</dd></div>
-            <div><dt>Conformidade anterior</dt><dd id="macro-previous">—</dd></div>
+            <div><dt id="macro-latest-label">Mais recente</dt><dd id="macro-latest">—</dd></div>
+            <div><dt>Anterior</dt><dd id="macro-previous">—</dd></div>
             <div><dt>Variação</dt><dd id="macro-change">—</dd></div>
           </dl>
         </section>
@@ -122,19 +122,19 @@
         <section class="panel macro-panel macro-panel--deviation" aria-labelledby="deviation-title">
           <div class="panel-header">
             <div>
-              <span class="eyebrow">Qualidade de execução</span>
-              <h2 id="deviation-title">Desvios médios por desmonte</h2>
+              <span class="eyebrow">Desvios</span>
+              <h2 id="deviation-title">Desvios médios</h2>
             </div>
             <span class="panel-tag panel-tag--quiet" id="deviation-tag">—</span>
           </div>
           <div class="macro-chart macro-chart--deviation" id="deviation-chart" role="img" aria-label="Gráfico de desvios médios de profundidade e carga; diferença absoluta de tampão no detalhamento"></div>
-          <p class="panel-note">Desvios relativos de profundidade e carga; tampão em diferença média absoluta. Registros não avaliáveis ficam fora do denominador.</p>
+          <p class="panel-note">Profundidade/carga: desvio relativo · tampão: diferença absoluta · não avaliáveis fora do denominador.</p>
         </section>
 
         <section class="panel macro-panel macro-panel--status" aria-labelledby="status-title">
           <div class="panel-header">
             <div>
-              <span class="eyebrow">Composição do recorte</span>
+              <span class="eyebrow">Status</span>
               <h2 id="status-title">Classificação dos furos</h2>
             </div>
             <span class="panel-tag panel-tag--quiet" id="status-tag">—</span>
@@ -146,7 +146,7 @@
         <section class="panel macro-panel macro-panel--table" aria-labelledby="macro-table-title">
           <div class="panel-header">
             <div>
-              <span class="eyebrow">Comparação operacional</span>
+              <span class="eyebrow">Detalhe</span>
               <h2 id="macro-table-title">Resumo por desmonte</h2>
             </div>
             <span class="panel-tag panel-tag--quiet" id="macro-table-tag">—</span>
@@ -158,16 +158,16 @@
                   <th>Data</th>
                   <th>Horário</th>
                   <th>Plano de fogo</th>
-                  <th>Tipo</th>
-                  <th>Furos</th>
+                    <th>Tipo de desmonte</th>
+                    <th>Total de furos</th>
                   <th>Conformes</th>
                   <th>Em revisão</th>
                   <th>Fora da faixa</th>
                   <th>Não avaliáveis</th>
                   <th>Conformidade</th>
-                  <th>Desvio de profundidade</th>
-                  <th>Desvio de carga</th>
-                  <th>Desvio de tampão</th>
+                    <th>Desvio de profundidade (%)</th>
+                    <th>Desvio de carga (%)</th>
+                    <th>Diferença absoluta média do tampão (m)</th>
                 </tr>
               </thead>
               <tbody id="macro-table-body"></tbody>
@@ -178,16 +178,16 @@
       </div>
 
       <footer class="macro-footer">
-        <span>Fonte operacional: planilhas disponíveis na pasta configurada do Google Drive.</span>
-        <a href="https://drive.google.com/drive/folders/1Vj6Pdzj7in3ol35NzJCKjLAzA2w5tPOX" target="_blank" rel="noreferrer">Abrir pasta de origem</a>
+        <span>Fonte: planilhas do Drive configurado.</span>
+        <a href="https://drive.google.com/drive/folders/1Vj6Pdzj7in3ol35NzJCKjLAzA2w5tPOX" target="_blank" rel="noreferrer">Abrir Drive</a>
       </footer>
     </main>
 
     <div class="toast" id="macro-toast" role="status" aria-live="polite"></div>
     <div class="chart-tooltip" id="macro-tooltip" role="status" aria-live="polite" aria-hidden="true"></div>
 
-    <script src="vendor/xlsx.full.min.js?v=1.7.1"></script>
-    <script src="config.js?v=1.7.1"></script>
-    <script src="macro.js?v=1.7.1"></script>
+    <script src="vendor/xlsx.full.min.js?v=1.8.0"></script>
+    <script src="config.js?v=1.8.0"></script>
+    <script src="macro.js?v=1.8.0"></script>
   </body>
 </html>

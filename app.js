@@ -23,7 +23,7 @@
   const integerFormat = new Intl.NumberFormat("pt-BR", { maximumFractionDigits: 0 });
   const percentFormat = new Intl.NumberFormat("pt-BR", { maximumFractionDigits: 1, signDisplay: "always" });
   const rateFormat = new Intl.NumberFormat("pt-BR", { maximumFractionDigits: 1 });
-  const statusFilterLabels = { all: "Todos os furos", green: "Conforme", amber: "Em revisão", red: "Fora da faixa" };
+  const statusFilterLabels = { all: "Todos", green: "Conforme", amber: "Em revisão", red: "Fora da faixa" };
   const rangeDefinitions = [
     { key: "depthPlanned", label: "Profundidade planejada", unit: UNITS.depth, step: 0.01, digits: 2 },
     { key: "depthActual", label: "Profundidade executada", unit: UNITS.depth, step: 0.01, digits: 2 },
@@ -277,11 +277,11 @@
       diameter: toNumber(read(["diametro", "diâmetro", "diameter"])),
       delay: toNumber(read(["tempo detonacao (ms)", "tempo detonação (ms)", "tempo detonacao", "delay"])),
       score,
-      primary: primary || (baselineMissing ? { label: "Sem referência", delta: null, relative: null, score: 1, tolerance: null } : executionMissing ? { label: "Não avaliável", delta: null, relative: null, score: 1, tolerance: null } : null),
+      primary: primary || (baselineMissing ? { label: "Referência ausente", delta: null, relative: null, score: 1, tolerance: null } : executionMissing ? { label: "Não avaliável", delta: null, relative: null, score: 1, tolerance: null } : null),
       baselineMissing,
       notEvaluable,
       severity,
-      statusLabel: baselineMissing ? "Sem referência" : executionMissing ? "Não avaliável" : severity === "red" ? "Fora da faixa" : severity === "amber" ? "Em revisão" : "Conforme",
+      statusLabel: baselineMissing ? "Referência ausente" : executionMissing ? "Não avaliável" : severity === "red" ? "Fora da faixa" : severity === "amber" ? "Em revisão" : "Conforme",
     };
   }
 
@@ -324,7 +324,7 @@
     const records = new Map();
     const ordered = datasets.slice().sort((a, b) => String(a.meta.updatedAt || "").localeCompare(String(b.meta.updatedAt || "")));
     ordered.forEach((dataset) => dataset.holes.forEach((hole) => {
-      const key = `${dateKey(hole.date)}|${hole.plan}|${hole.id}`;
+      const key = `${dateKey(hole.date)}|${hole.time || "N/D"}|${hole.plan}|${hole.type || "N/D"}|${hole.id}`;
       const existing = records.get(key);
       if (!existing || String(hole.sourceUpdatedAt || "") >= String(existing.sourceUpdatedAt || "")) records.set(key, hole);
     }));
@@ -416,9 +416,9 @@
 
   function populateFilters() {
     const holes = state.dataset?.holes || [];
-    setSelectOptions($("type-filter"), [...new Set(holes.map((row) => row.type))].sort(), "Todos os tipos de desmonte", formatTypeLabel);
-    setSelectOptions($("date-filter"), [...new Set(holes.map((row) => dateKey(row.date)))].sort(), "Todas as datas de desmonte");
-    setSelectOptions($("status-filter"), ["green", "amber", "red"], "Todos os status", (value) => statusFilterLabels[value]);
+    setSelectOptions($("type-filter"), [...new Set(holes.map((row) => row.type))].sort(), "Todos os tipos", formatTypeLabel);
+    setSelectOptions($("date-filter"), [...new Set(holes.map((row) => dateKey(row.date)))].sort(), "Todas as datas");
+    setSelectOptions($("status-filter"), ["green", "amber", "red"], "Todos", (value) => statusFilterLabels[value]);
     $("status-filter").value = Object.hasOwn(statusFilterLabels, state.statusFilter) ? state.statusFilter : "all";
     renderNumericFilters(holes);
   }
@@ -487,7 +487,7 @@
             <div class="range-limits"><span class="range-min-label">${escapeHtml(formatRangeValue(metadata.min, definition))}</span><span class="range-max-label">${escapeHtml(formatRangeValue(metadata.max, definition))}</span></div>
           </div>
         </details>`).join("")
-      : `<div class="filter-empty">Não há colunas numéricas com variação neste recorte.</div>`;
+      : `<div class="filter-empty">Sem faixas numéricas neste recorte.</div>`;
 
     available.forEach(({ definition }) => {
       const root = container.querySelector(`[data-range-key="${definition.key}"]`);
@@ -547,26 +547,26 @@
     const lead = candidates.slice().sort((a, b) => Math.abs(b.pct) - Math.abs(a.pct))[0];
     if (lead && Math.abs(lead.pct) >= 0.02) {
       $("hero-focus").textContent = lead.label;
-      $("hero-focus-delta").textContent = `${formatPercent(lead.pct)} · ${formatSigned(lead.delta, lead.unit)} em relação ao planejado`;
+      $("hero-focus-delta").textContent = `${formatPercent(lead.pct)} · ${formatSigned(lead.delta, lead.unit)} vs. planejado`;
     } else {
-      $("hero-focus").textContent = "Nenhum parâmetro dominante";
-      $("hero-focus-delta").textContent = "Desvios médios dentro da faixa configurada";
+      $("hero-focus").textContent = "Sem desvio dominante";
+      $("hero-focus-delta").textContent = "Médias dentro das faixas";
     }
     const compliance = summary.evaluable ? summary.within / summary.evaluable : null;
     $("hero-compliance").textContent = formatRate(compliance);
-    $("hero-compliance-caption").textContent = Number.isFinite(compliance) ? `${formatInteger(summary.within)} de ${formatInteger(summary.evaluable)} furos avaliáveis classificados como conformes` : "Sem registros avaliáveis";
-    $("hero-plan").textContent = summary.plans.length ? `Plano de fogo ${summary.plans.join(", ")}` : "Plano de fogo N/D";
-    $("hero-date").textContent = summary.dates.length ? `Data do desmonte ${summary.dates.join(", ")}` : "Data do desmonte N/D";
-    $("hero-count").textContent = `${formatInteger(summary.count)} furos avaliados`;
+    $("hero-compliance-caption").textContent = Number.isFinite(compliance) ? `${formatInteger(summary.within)} de ${formatInteger(summary.evaluable)} furos avaliáveis` : "Sem registros avaliáveis";
+    $("hero-plan").textContent = summary.plans.length ? `${summary.plans.length === 1 ? "Plano" : "Planos"} ${summary.plans.join(", ")}` : "Plano N/D";
+    $("hero-date").textContent = summary.dates.length ? `${summary.dates.length === 1 ? "Data" : "Datas"} ${summary.dates.join(", ")}` : "Data N/D";
+    $("hero-count").textContent = `${formatInteger(summary.count)} furos`;
   }
 
   function renderKpis(summary) {
     $("kpi-holes").textContent = formatInteger(summary.count);
-    $("kpi-holes-foot").textContent = summary.flagged ? `${formatInteger(summary.flagged)} exceções para verificação` : "Sem exceções no recorte";
+    $("kpi-holes-foot").textContent = summary.flagged ? `${formatInteger(summary.flagged)} exceções` : "Sem exceções";
     $("kpi-depth").textContent = formatInteger(summary.within);
-    $("kpi-depth-foot").textContent = `${formatRate(summary.evaluable ? summary.within / summary.evaluable : null)} dos furos avaliáveis`;
+    $("kpi-depth-foot").textContent = `${formatRate(summary.evaluable ? summary.within / summary.evaluable : null)} avaliáveis`;
     $("kpi-charge").textContent = formatInteger(summary.review);
-    $("kpi-charge-foot").textContent = summary.review ? "Requerem conferência" : "Sem registros em revisão";
+    $("kpi-charge-foot").textContent = summary.review ? "Conferência necessária" : "Sem registros em revisão";
     $("kpi-attention").textContent = formatInteger(summary.high);
     $("kpi-attention-foot").textContent = summary.high ? "Prioridade alta" : summary.baselineMissing ? `${formatInteger(summary.baselineMissing)} sem referência` : "Sem ocorrências";
   }
@@ -623,7 +623,8 @@
     const mapRoot = $("hole-map");
     const coordinateRows = rows.filter((row) => Number.isFinite(row.x) && Number.isFinite(row.y));
     if (!coordinateRows.length) {
-      mapRoot.innerHTML = `<div class="empty-state">A fonte não contém coordenadas X/Y válidas para este recorte.</div>`;
+      mapRoot.innerHTML = `<div class="empty-state">Sem coordenadas X/Y válidas no recorte.</div>`;
+      $("map-tag").textContent = "0 pontos";
       return;
     }
     const width = 840;
@@ -659,7 +660,7 @@
       const radius = row.severity === "red" ? 5.2 : row.severity === "amber" ? 4.3 : 3.5;
       const selectedRing = selected ? `<circle class="selection-ring" cx="${x}" cy="${y}" r="${radius + 6}"/>` : "";
       const tooltip = `Furo ${row.id} · ${row.statusLabel} · ${row.primary?.label || "Sem parâmetro crítico"}`;
-      return `${selectedRing}<circle class="hole-point hole-point--${severityClass(row.severity)}${selected ? " hole-point--selected" : ""}" cx="${x}" cy="${y}" r="${radius}" data-hole-id="${escapeHtml(row.id)}" data-chart-tooltip="${escapeHtml(tooltip)}" tabindex="0" role="button" aria-label="Furo ${escapeHtml(row.id)}, ${escapeHtml(row.statusLabel)}"><title>${escapeHtml(tooltip)}</title></circle>`;
+      return `${selectedRing}<circle class="hole-hit-area" cx="${x}" cy="${y}" r="${Math.max(10, radius + 6)}" data-hole-id="${escapeHtml(row.id)}" aria-hidden="true"></circle><circle class="hole-point hole-point--${severityClass(row.severity)}${selected ? " hole-point--selected" : ""}" cx="${x}" cy="${y}" r="${radius}" data-hole-id="${escapeHtml(row.id)}" data-chart-tooltip="${escapeHtml(tooltip)}" tabindex="0" role="button" aria-label="Furo ${escapeHtml(row.id)}, ${escapeHtml(row.statusLabel)}"><title>${escapeHtml(tooltip)}</title></circle>`;
     }).join("");
     const labelX = [0, .5, 1].map((fraction) => `<text class="plot-label" x="${xPos(minX + fraction * (maxX - minX))}" y="${height - 14}" text-anchor="middle">${formatNumber(minX + fraction * (maxX - minX), 1)}</text>`).join("");
     const labelY = [0, .5, 1].map((fraction) => `<text class="plot-label" x="16" y="${yPos(minY + fraction * (maxY - minY)) + 3}">${formatNumber(minY + fraction * (maxY - minY), 1)}</text>`).join("");
@@ -704,7 +705,7 @@
       const selected = String(row.id) === String(state.selectedHoleId);
       const selectedRing = selected ? `<circle class="selection-ring" cx="${x}" cy="${y}" r="${radius + 5}"/>` : "";
       const tooltip = `Furo ${row.id} · profundidade ${formatPercent(row.depthPct)} · carga ${formatPercent(row.chargePct)}`;
-      return `${selectedRing}<circle class="scatter-point scatter-point--${severityClass(row.severity)}${selected ? " scatter-point--selected" : ""}" cx="${x}" cy="${y}" r="${radius}" data-hole-id="${escapeHtml(row.id)}" data-chart-tooltip="${escapeHtml(tooltip)}" tabindex="0" role="button" aria-label="Furo ${escapeHtml(row.id)}, profundidade ${escapeHtml(formatPercent(row.depthPct))}, carga ${escapeHtml(formatPercent(row.chargePct))}"><title>${escapeHtml(tooltip)}</title></circle>`;
+      return `${selectedRing}<circle class="scatter-hit-area" cx="${x}" cy="${y}" r="${Math.max(10, radius + 6)}" data-hole-id="${escapeHtml(row.id)}" aria-hidden="true"></circle><circle class="scatter-point scatter-point--${severityClass(row.severity)}${selected ? " scatter-point--selected" : ""}" cx="${x}" cy="${y}" r="${radius}" data-hole-id="${escapeHtml(row.id)}" data-chart-tooltip="${escapeHtml(tooltip)}" tabindex="0" role="button" aria-label="Furo ${escapeHtml(row.id)}, profundidade ${escapeHtml(formatPercent(row.depthPct))}, carga ${escapeHtml(formatPercent(row.chargePct))}"><title>${escapeHtml(tooltip)}</title></circle>`;
     }).join("");
     const zeroX = xPos(0);
     const zeroY = yPos(0);
@@ -834,7 +835,7 @@
        ["Carga carregada (kg)", withUnit(hole.chargeActual, UNITS.charge), hole.chargeDelta],
        ["Tampão executado (m)", withUnit(hole.stemmingActual, UNITS.stemming), hole.stemmingDelta],
        ["Subperfuração (m)", withUnit(hole.subdrill, UNITS.subdrill), null],
-       ["Tempo de iniciação", withUnit(hole.delay, UNITS.delay), null],
+       ["Tempo de iniciação (ms)", withUnit(hole.delay, UNITS.delay), null],
        ["Azimute / inclinação", `${formatNumber(hole.azimuth, 0)}° / ${formatNumber(hole.inclination, 0)}°`, null],
      ];
      $("profile-data").innerHTML = `<div class="profile-kicker">${escapeHtml(hole.statusLabel)} · ${escapeHtml(formatTypeLabel(hole.type))}</div>${rows.map(([label, value, delta]) => `<div class="profile-data-row"><span>${escapeHtml(label)}</span><strong class="${Number.isFinite(delta) && Math.abs(delta) > 0.0001 ? "is-alert" : ""}">${escapeHtml(value)}${Number.isFinite(delta) ? ` <small>(${escapeHtml(formatSigned(delta))})</small>` : ""}</strong></div>`).join("")}`;
@@ -861,7 +862,7 @@
   function renderRanking(rows) {
     const ranked = rows.filter((row) => row.primary).slice().sort((a, b) => b.score - a.score || a.id - b.id).slice(0, 7);
     const exceptionCount = rows.filter((row) => row.severity !== "green").length;
-    $("ranking-tag").textContent = `${formatInteger(exceptionCount)} exceções · ${formatInteger(ranked.length)} principais`;
+    $("ranking-tag").textContent = `${formatInteger(exceptionCount)} exceções · ${formatInteger(ranked.length)} prioridades`;
     if (!ranked.length) {
        $("ranking-list").innerHTML = `<div class="empty-state">Nenhum registro fora das faixas configuradas.</div>`;
       return;
@@ -871,7 +872,7 @@
       const metric = row.primary;
       const deltaUnit = metric.label === "Carga" ? UNITS.charge : metric.label === "Tampão" ? UNITS.stemming : UNITS.depth;
       const fillClass = row.severity === "red" ? "ranking-fill--red" : "";
-       const metricText = metric.label === "Sem referência" ? "Referência ausente" : metric.label === "Não avaliável" ? "Não avaliável" : `${metric.label} · ${formatPercent(metric.relative)}`;
+       const metricText = metric.label === "Referência ausente" ? "Referência ausente" : metric.label === "Não avaliável" ? "Não avaliável" : `${metric.label} · ${formatPercent(metric.relative)}`;
        const deltaText = Number.isFinite(metric.delta) ? formatSigned(metric.delta, deltaUnit) : "N/D";
        return `<button class="ranking-item ranking-button" type="button" data-hole-id="${escapeHtml(row.id)}" aria-label="Furo ${escapeHtml(row.id)}: ${escapeHtml(metricText)}, desvio ${escapeHtml(deltaText)}"><span class="ranking-hole">${escapeHtml(row.id)}</span><span class="ranking-metric">${escapeHtml(metricText)}</span><span class="ranking-track"><span class="ranking-fill ${fillClass}" style="width:${Math.min(100, (row.score / maximum) * 100)}%"></span></span><span class="ranking-delta">${escapeHtml(deltaText)}</span></button>`;
     }).join("");
@@ -880,7 +881,7 @@
 
   function renderTiming(rows, summary) {
     if (!summary.delays.length || summary.delayMin === summary.delayMax) {
-       $("timing-chart").innerHTML = `<div class="empty-state">A fonte não apresenta variação nos tempos de iniciação neste recorte.</div>`;
+       $("timing-chart").innerHTML = `<div class="empty-state">Sem variação nos tempos de iniciação.</div>`;
       $("timing-tag").textContent = summary.delays.length ? `${formatInteger(summary.delayMin)} ms` : "Sem dados";
       return;
     }
@@ -894,6 +895,8 @@
     }).join("");
     const medianPosition = position(summary.delayMedian);
     $("timing-chart").innerHTML = `<div class="timing-band"></div><div class="timing-axis"></div>${dots}<span class="timing-median" style="left:calc(15px + ${medianPosition} * (100% - 30px))"></span><span class="timing-median-label" style="left:calc(15px + ${medianPosition} * (100% - 30px))">Mediana ${formatInteger(summary.delayMedian)} ms</span><span class="timing-tick" style="left:15px">${formatInteger(min)}</span><span class="timing-tick" style="left:50%">${formatInteger(min + span / 2)}</span><span class="timing-tick" style="right:0; transform:none">${formatInteger(max)}</span>`;
+    const medianLabel = $("timing-chart").querySelector(".timing-median-label");
+    if (medianLabel) medianLabel.style.left = `clamp(42px, calc(15px + ${medianPosition} * (100% - 30px)), calc(100% - 42px))`;
     $("timing-chart").querySelectorAll("[data-hole-id]").forEach((node) => {
       node.addEventListener("click", () => selectHole(node.dataset.holeId));
       node.addEventListener("keydown", (event) => {
@@ -915,7 +918,7 @@
      $("holes-table-body").innerHTML = visible.map((row) => `<tr><td data-label="ID do furo"><button class="table-hole-button" type="button" data-hole-id="${escapeHtml(row.id)}">${escapeHtml(row.id)}</button></td><td data-label="Conformidade"><span class="status-pill status-pill--${severityClass(row.severity)}">${escapeHtml(row.statusLabel)}</span></td><td data-label="Profundidade planejada">${withUnit(row.depthPlanned, UNITS.depth)}</td><td data-label="Profundidade executada">${withUnit(row.depthActual, UNITS.depth)}</td><td data-label="Carga planejada">${withUnit(row.chargePlanned, UNITS.charge)}</td><td data-label="Carga carregada">${withUnit(row.chargeActual, UNITS.charge)}</td><td data-label="Tampão executado">${withUnit(row.stemmingActual, UNITS.stemming)}</td><td data-label="Tempo de iniciação">${withUnit(row.delay, UNITS.delay)}</td></tr>`).join("");
     $("holes-table-body").querySelectorAll("[data-hole-id]").forEach((node) => node.addEventListener("click", () => selectHole(node.dataset.holeId)));
     const statusSuffix = state.statusFilter === "all" ? "" : ` · filtro: ${statusFilterLabels[state.statusFilter]}`;
-    $("table-footer").textContent = `Exibindo ${formatInteger(visible.length)} de ${formatInteger(rows.length)} furos · ordenado pela prioridade de verificação${statusSuffix}`;
+    $("table-footer").textContent = `${formatInteger(visible.length)} de ${formatInteger(rows.length)} furos · ordenado por prioridade${statusSuffix}`;
   }
 
   function renderAll() {
@@ -959,9 +962,9 @@
       const callback = `__qaqc_jsonp_${Date.now()}_${Math.random().toString(36).slice(2)}`;
       const script = document.createElement("script");
       const cleanup = () => { delete window[callback]; script.remove(); };
-      const timeout = window.setTimeout(() => { cleanup(); reject(new Error("Tempo esgotado ao acessar a fonte Drive.")); }, 15000);
+      const timeout = window.setTimeout(() => { cleanup(); reject(new Error("Tempo excedido ao acessar a fonte do Drive.")); }, 15000);
       window[callback] = (value) => { window.clearTimeout(timeout); cleanup(); resolve(value); };
-      script.onerror = () => { window.clearTimeout(timeout); cleanup(); reject(new Error("Não foi possível acessar o endpoint Drive.")); };
+      script.onerror = () => { window.clearTimeout(timeout); cleanup(); reject(new Error("Não foi possível acessar a conexão com o Drive.")); };
       script.src = appendParams(url, { callback });
       document.head.appendChild(script);
     });
@@ -974,7 +977,7 @@
       if (!response.ok) throw new Error(`HTTP ${response.status}`);
       const body = await response.text();
       const payload = JSON.parse(body);
-      if (payload.ok === false) throw new Error(payload.error || "A fonte devolveu um erro de leitura.");
+      if (payload.ok === false) throw new Error(payload.error || "A fonte não pôde ser lida.");
       return payload;
     } catch (error) {
       return fetchJsonp(target);
@@ -989,7 +992,7 @@
   }
 
   function workbookToPayload(arrayBuffer, meta = {}) {
-    if (!window.XLSX) throw new Error("Leitor XLSX indisponível no site.");
+    if (!window.XLSX) throw new Error("O leitor de planilhas está indisponível.");
     const workbook = window.XLSX.read(arrayBuffer, { type: "array", cellDates: false });
     const sheets = {};
     workbook.SheetNames.forEach((name) => {
@@ -1002,11 +1005,11 @@
   async function fetchRemoteFile(endpoint, file) {
     if (file.url) {
       const response = await fetch(appendParams(file.url, { t: Date.now() }), { cache: "no-store" });
-      if (!response.ok) throw new Error(`Download indisponível (HTTP ${response.status}).`);
+      if (!response.ok) throw new Error(`Não foi possível baixar a planilha (HTTP ${response.status}).`);
       return workbookToPayload(await response.arrayBuffer(), file);
     }
     const payload = await fetchJson(endpoint, { action: "download", id: file.id });
-    if (!payload.base64) throw new Error("A fonte não retornou o conteúdo da planilha.");
+    if (!payload.base64) throw new Error("A fonte não retornou a planilha.");
     return workbookToPayload(base64ToBytes(payload.base64), file);
   }
 
@@ -1112,7 +1115,7 @@
           state.syncing = false;
           renderSourceUi();
         }
-        showToast(error.message || "Fonte indisponível; fonte local carregada.", true);
+        showToast(error.message || "Fonte indisponível; base local carregada.", true);
       }
     } finally {
       state.loading = false;

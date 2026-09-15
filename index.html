@@ -7,7 +7,7 @@
     <meta name="description" content="QA/QC de perfuração e desmonte: conformidade operacional, desvios e rastreabilidade por furo.">
     <title>QA/QC de Perfuração e Desmonte</title>
     <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' fill='%23172a32'/%3E%3Cpath d='M14 44 32 14l18 30H38l-6-11-6 11H14Z' fill='%23df2338'/%3E%3C/svg%3E">
-    <link rel="stylesheet" href="styles.css?v=1.7.1">
+    <link rel="stylesheet" href="styles.css?v=1.8.0">
   </head>
   <body>
     <header class="topbar">
@@ -23,51 +23,50 @@
       <div class="topbar__context">
         <span class="live-dot" aria-hidden="true"></span>
         <span id="top-status">Carregando dados</span>
-        <span class="topbar__version">v1.7.1</span>
+        <span class="topbar__version">v1.8.0</span>
         <button class="topbar__button" id="refresh-data" type="button">Atualizar dados</button>
       </div>
     </header>
 
     <main class="app-shell">
-      <aside class="control-rail" aria-label="Filtros da análise">
+      <aside class="control-rail" aria-label="Filtros">
         <div class="rail-heading">
-          <span class="eyebrow">Garantia e Controle de Qualidade</span>
-          <h2>Filtros da análise</h2>
+          <h2>Filtros</h2>
         </div>
 
         <section class="rail-section" aria-labelledby="filter-title">
-          <div class="section-label" id="filter-title">Recorte operacional</div>
-          <label class="field-label" for="plan-search">Plano de fogo</label>
+          <div class="section-label" id="filter-title">Recorte</div>
+          <label class="field-label" for="plan-search">Plano</label>
           <label class="search-field search-field--rail" for="plan-search">
-            <span class="sr-only">Buscar plano de fogo por nome ou código</span>
-            <input id="plan-search" type="search" placeholder="Nome ou código do plano" autocomplete="off">
+            <span class="sr-only">Buscar plano por nome ou código</span>
+            <input id="plan-search" type="search" placeholder="Nome ou código" autocomplete="off">
           </label>
-          <label class="field-label" for="type-filter">Tipo de desmonte</label>
+          <label class="field-label" for="type-filter">Tipo</label>
           <select id="type-filter" class="control-select"></select>
-          <label class="field-label" for="date-filter">Data do desmonte</label>
+          <label class="field-label" for="date-filter">Data</label>
           <select id="date-filter" class="control-select"></select>
-          <label class="field-label" for="status-filter">Conformidade</label>
+          <label class="field-label" for="status-filter">Status</label>
           <select id="status-filter" class="control-select">
-            <option value="all">Todos os status</option>
+            <option value="all">Todos</option>
             <option value="green">Conforme</option>
             <option value="amber">Em revisão</option>
             <option value="red">Fora da faixa</option>
           </select>
-          <button class="text-button" id="clear-filters" type="button">Restaurar filtros</button>
+          <button class="text-button" id="clear-filters" type="button">Limpar filtros</button>
         </section>
 
         <section class="rail-section rail-section--ranges" aria-labelledby="numeric-title">
-          <div class="section-label" id="numeric-title">Intervalos numéricos</div>
-          <p class="filter-help">Arraste os dois marcadores para definir a faixa de cada coluna.</p>
+          <div class="section-label" id="numeric-title">Faixas</div>
+          <p class="filter-help">Arraste os dois pontos para ajustar os limites.</p>
           <div id="numeric-filters" class="numeric-filters" aria-live="polite">
             <div class="filter-empty">Carregando intervalos...</div>
           </div>
         </section>
 
         <section class="rail-section rail-note" aria-labelledby="method-title">
-          <div class="section-label" id="method-title">Critério de avaliação</div>
-          <p>Profundidade e carga: desvio relativo ±10% / ±20% · tampão: desvio absoluto ±0,5 m. Unidades: profundidade, tampão e subperfuração em m; carga em kg.</p>
-          <div class="legend-stack" aria-label="Legenda de status">
+          <div class="section-label" id="method-title">Critérios</div>
+          <p>Profundidade ±10% · carga ±20% · tampão ±0,5 m. Unidades: m (profundidade, tampão e subperfuração) · kg (carga) · ms (iniciação).</p>
+          <div class="legend-stack" aria-label="Status">
             <span><i class="legend-dot legend-dot--green"></i>Conforme</span>
             <span><i class="legend-dot legend-dot--amber"></i>Em revisão</span>
             <span><i class="legend-dot legend-dot--red"></i>Fora da faixa</span>
@@ -75,22 +74,21 @@
         </section>
 
         <div class="rail-footer">
-          <span class="rail-footer__caption">Base operacional</span>
-          <a href="https://drive.google.com/drive/folders/1Vj6Pdzj7in3ol35NzJCKjLAzA2w5tPOX" target="_blank" rel="noreferrer">Abrir pasta de origem</a>
+          <span class="rail-footer__caption">Fonte</span>
+          <a href="https://drive.google.com/drive/folders/1Vj6Pdzj7in3ol35NzJCKjLAzA2w5tPOX" target="_blank" rel="noreferrer">Abrir Drive</a>
         </div>
       </aside>
 
       <section class="workspace" aria-label="Dashboard de QA/QC">
         <section class="hero-panel" aria-label="Conformidade do recorte">
           <div class="hero-copy">
-            <span class="eyebrow eyebrow--light">Garantia e Controle de Qualidade</span>
             <div class="hero-signal">
-              <span class="hero-signal__label">Conformidade do recorte</span>
+              <span class="hero-signal__label">Conformidade</span>
               <strong id="hero-compliance">—</strong>
               <span id="hero-compliance-caption">—</span>
             </div>
             <div class="hero-focus">
-              <span class="hero-focus__label">Parâmetro com maior desvio relativo</span>
+              <span class="hero-focus__label">Maior desvio</span>
               <strong id="hero-focus">—</strong>
               <span id="hero-focus-delta">—</span>
             </div>
@@ -107,7 +105,7 @@
 
         <section class="kpi-strip" aria-label="Indicadores de conformidade">
           <article class="kpi-card kpi-card--lead">
-            <span class="kpi-label">Furos avaliados</span>
+            <span class="kpi-label">Furos no recorte</span>
             <strong class="kpi-value" id="kpi-holes">—</strong>
             <span class="kpi-foot" id="kpi-holes-foot">—</span>
           </article>
@@ -132,8 +130,8 @@
           <section class="panel panel--map span-7" aria-labelledby="map-title">
             <div class="panel-header">
               <div>
-                <span class="eyebrow">Distribuição espacial</span>
-                <h2 id="map-title">Posição dos furos e conformidade</h2>
+                <span class="eyebrow">Mapa</span>
+                <h2 id="map-title">Mapa de conformidade</h2>
               </div>
               <span class="panel-tag" id="map-tag">—</span>
             </div>
@@ -144,14 +142,14 @@
               <span><i class="legend-dot legend-dot--green"></i>Conforme</span>
               <span><i class="legend-dot legend-dot--amber"></i>Em revisão</span>
               <span><i class="legend-dot legend-dot--red"></i>Fora da faixa</span>
-              <span class="map-hint">Selecione um ponto para consultar o furo</span>
+              <span class="map-hint">Selecione um furo</span>
             </div>
           </section>
 
           <section class="panel panel--profile span-5" aria-labelledby="profile-title">
             <div class="panel-header">
               <div>
-                <span class="eyebrow">Consulta do furo</span>
+                <span class="eyebrow">Furo selecionado</span>
                 <h2 id="profile-title">Perfil de carregamento</h2>
               </div>
               <button class="hole-chip" id="selected-hole" type="button">Furo —</button>
@@ -160,13 +158,13 @@
               <div class="profile-illustration" id="profile-illustration" aria-label="Perfil esquemático do furo selecionado"></div>
               <div class="profile-data" id="profile-data"></div>
             </div>
-            <div class="profile-footnote">Linha tracejada: planejado · preenchido: executado</div>
+            <div class="profile-footnote">Tracejado: planejado · preenchido: executado</div>
           </section>
 
           <section class="panel panel--scatter span-7" aria-labelledby="scatter-title">
             <div class="panel-header">
               <div>
-                <span class="eyebrow">Desvio relativo</span>
+                <span class="eyebrow">Desvios</span>
                 <h2 id="scatter-title">Profundidade e carga</h2>
               </div>
               <span class="panel-tag" id="scatter-tag">—</span>
@@ -178,8 +176,8 @@
           <section class="panel panel--waterfall span-5" aria-labelledby="waterfall-title">
             <div class="panel-header">
               <div>
-                <span class="eyebrow">Classificação</span>
-                <h2 id="waterfall-title">Distribuição da conformidade</h2>
+                <span class="eyebrow">Status</span>
+                <h2 id="waterfall-title">Classificação dos furos</h2>
               </div>
               <span class="panel-tag panel-tag--quiet" id="waterfall-tag">—</span>
             </div>
@@ -189,7 +187,7 @@
           <section class="panel panel--compare span-5" aria-labelledby="compare-title">
             <div class="panel-header">
               <div>
-                <span class="eyebrow">Parâmetros do plano de fogo</span>
+                <span class="eyebrow">Parâmetros</span>
                 <h2 id="compare-title">Planejado × executado</h2>
               </div>
             </div>
@@ -200,8 +198,8 @@
           <section class="panel panel--ranking span-7" aria-labelledby="ranking-title">
             <div class="panel-header">
               <div>
-                <span class="eyebrow">Prioridade de verificação</span>
-                <h2 id="ranking-title">Furos prioritários para verificação</h2>
+                <span class="eyebrow">Verificação</span>
+                <h2 id="ranking-title">Prioridades de verificação</h2>
               </div>
               <span class="panel-tag panel-tag--quiet" id="ranking-tag">—</span>
             </div>
@@ -212,7 +210,7 @@
             <div class="panel-header">
               <div>
                 <span class="eyebrow">Iniciação</span>
-                <h2 id="timing-title">Distribuição dos tempos de iniciação</h2>
+                <h2 id="timing-title">Tempos de iniciação</h2>
               </div>
               <span class="panel-tag panel-tag--quiet" id="timing-tag">—</span>
             </div>
@@ -222,12 +220,12 @@
           <section class="panel panel--table span-12" aria-labelledby="table-title">
             <div class="panel-header panel-header--table">
               <div>
-                <span class="eyebrow">Detalhamento por furo</span>
+                <span class="eyebrow">Detalhe</span>
                 <h2 id="table-title">Controle por furo</h2>
               </div>
               <label class="search-field" for="hole-search">
                 <span class="sr-only">Buscar furo</span>
-                <input id="hole-search" type="search" placeholder="Buscar por ID do furo" autocomplete="off">
+                <input id="hole-search" type="search" placeholder="Filtrar por ID" autocomplete="off">
               </label>
             </div>
             <div class="table-wrap">
@@ -256,8 +254,8 @@
     <div class="toast" id="toast" role="status" aria-live="polite"></div>
     <div class="chart-tooltip" id="chart-tooltip" role="status" aria-live="polite" aria-hidden="true"></div>
 
-    <script src="vendor/xlsx.full.min.js?v=1.7.1"></script>
-    <script src="config.js?v=1.7.1"></script>
-    <script src="app.js?v=1.7.1"></script>
+    <script src="vendor/xlsx.full.min.js?v=1.8.0"></script>
+    <script src="config.js?v=1.8.0"></script>
+    <script src="app.js?v=1.8.0"></script>
   </body>
 </html>
