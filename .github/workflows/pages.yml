@@ -23,6 +23,15 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - name: Install dependencies
+        run: npm ci
+      - name: Validate dashboard
+        run: npm test && npm run check && node --check config.js && node --check vendor/xlsx.full.min.js
       - name: Configure Pages
         uses: actions/configure-pages@v5
       - name: Upload site artifact

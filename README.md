@@ -1,40 +1,81 @@
-# QAQC de Perfuração e Desmonte
+# QA/QC de Perfuração e Desmonte
 
-Dashboard operacional estático para leitura e storytelling de planilhas de
-perfuração/desmonte. A interface usa a estética Enaex/OpenBlast das referências
-fornecidas: topo grafite, vermelho de operação, base clara, filtros compactos e
-ilustrações SVG de malha, furo e perfil de carga. A leitura visual é organizada
-em cinco perguntas curtas: onde está o desvio, como ele se relaciona, quantos
-furos exigem ação, qual é a fila de campo e quando a iniciação acontece.
+Dashboard operacional para avaliar a aderência entre o plano de fogo e a
+execução da perfuração e do carregamento, com classificação de conformidade,
+priorização de verificações e rastreabilidade por furo.
 
-O painel inclui mapa XY, dispersão de profundidade × carga, cascata de triagem,
-comparação previsto × realizado, ranking de exceções, distribuição dos tempos e
-registro auditável. As faixas são triagem visual e permanecem explícitas na
-interface; unidades ausentes na fonte não são inferidas.
+## Objetivo
 
-## O que a base atual entrega
+Organizar a leitura de campo em uma sequência curta e técnica:
 
-O fixture inicial foi extraído de `Plano_Fogo_Realizado_PP550926.xlsx` e contém
-262 furos do plano 550926, com profundidade prevista/realizada, cargas, tampão,
-cotas, coordenadas e tempos de detonação. O workbook original não é publicado;
-`data/sample.json` é uma cópia reduzida e auditável para o site continuar
-funcionando antes da primeira atualização do Drive.
+`Fonte de dados → Recorte → Conformidade → Desvio → Verificação`
 
-## Atualização automática pelo Drive
+O painel apresenta a posição dos furos, o perfil de carregamento selecionado,
+a comparação entre parâmetros planejados e executados, a distribuição dos
+tempos de iniciação e o registro detalhado dos furos.
 
-1. Abra o projeto Apps Script em `script.google.com` e crie um projeto vazio.
-2. Cole o conteúdo de `integrations/google-drive-sync/Code.gs`.
-3. Publique como Web app executando como o proprietário, com acesso para quem
-   possui o link. O script lê apenas arquivos `.xlsx`, `.xls` e `.csv` que sejam
-   filhos diretos da pasta configurada; a pasta pode continuar privada.
-4. Copie a URL `/exec` gerada para `driveIndexUrl` em `config.js` e faça um único
-   commit. Depois disso, inserir ou substituir uma planilha na pasta alimenta o
-   dashboard sem novo deploy do Pages: o botão Atualizar e o polling de cinco
-   minutos refazem a listagem e a leitura.
+## Vocabulário do painel
 
-O endpoint retorna a planilha em base64 apenas para manter a leitura privada do
-Drive no servidor Apps Script. Não coloque outras colunas sensíveis no mesmo
-arquivo se a URL do dashboard for pública.
+A interface adota a terminologia de engenharia de perfuração e desmonte:
+
+- `Plano de fogo`, `malha de perfuração`, `afastamento`, `espaçamento` e
+  `subperfuração` para o planejamento e a geometria;
+- `Profundidade executada`, `carga carregada`, `tampão` e `tempo de iniciação`
+  para os registros de execução;
+- `Conforme`, `Em revisão`, `Fora da faixa` e `Sem referência` para a
+  classificação dos furos;
+- `Desvio técnico`, `critério de avaliação` e `rastreabilidade` para a leitura
+  de QA/QC.
+
+Os textos foram revisados com base nos seguintes materiais fornecidos para
+referência terminológica e operacional:
+
+- *Desmonte de rocha na Mina do Sossego*;
+- *Mine to plant na mina de Salobo*;
+- *Implementação do Programa QA/QC na Mina de Ferro de Carajás (Serra Norte)
+  com a utilização da Blastscout Probe*.
+
+Os materiais orientam a linguagem, mas não transformam resultados históricos
+em metas universais. O painel mantém os critérios configurados no projeto e
+não infere unidades ausentes na planilha de origem.
+
+## Critério de avaliação
+
+A classificação atual é uma triagem operacional configurada no painel:
+
+- profundidade: desvio relativo de até ±10%;
+- carga: desvio relativo de até ±20%;
+- tampão: desvio absoluto de até ±0,5 na unidade da fonte.
+
+O resultado é uma indicação para verificação. Não substitui o plano de fogo,
+o procedimento operacional, a inspeção de campo ou os critérios normativos
+vigentes.
+
+## Dados publicados
+
+O fixture público está em [`data/sample.json`](data/sample.json) e foi extraído
+de `Plano_Fogo_Realizado_PP550926.xlsx`. Ele contém 262 furos do plano 550926,
+com profundidade planejada e executada, cargas, tampão, cotas, coordenadas e
+tempos de iniciação.
+
+O workbook original não é publicado. A base reduzida permite manter o site
+funcional antes da ativação da fonte operacional do Drive.
+
+## Atualização pelo Google Drive
+
+1. Crie um projeto vazio no Google Apps Script.
+2. Cole [`integrations/google-drive-sync/Code.gs`](integrations/google-drive-sync/Code.gs).
+3. Publique como Web app, executando como o proprietário, com acesso para
+   qualquer pessoa que possua o link.
+4. Informe a URL `/exec` em `driveIndexUrl`, no arquivo `config.js`.
+
+O script lê apenas arquivos `.xlsx`, `.xls` e `.csv` filhos diretos da pasta
+configurada. Depois da configuração, o botão **Atualizar dados** e o polling
+de cinco minutos refazem a leitura sem exigir novo deploy do GitHub Pages.
+
+O endpoint retorna a planilha em base64 para preservar a leitura privada da
+fonte no servidor Apps Script. Não coloque colunas sensíveis no mesmo arquivo
+se a URL do dashboard for pública.
 
 ## Desenvolvimento local
 
@@ -48,11 +89,40 @@ python scripts/extract_workbook.py `
 python -m http.server 4173
 ```
 
-Abra `http://localhost:4173/`. Para testar uma URL de Apps Script sem alterar o
-repositório, use `http://localhost:4173/?drive=<URL_ENCODED_DO_ENDPOINT>`.
+Acesse `http://localhost:4173/`. Para testar um endpoint do Drive sem alterar
+o repositório, use `http://localhost:4173/?drive=<URL_ENCODED_DO_ENDPOINT>`.
+
+## Validação
+
+Antes de publicar uma alteração, execute:
+
+```powershell
+npm test
+npm run check
+node --check config.js
+git diff --check
+```
+
+O teste valida a existência da aba `Dados dos Furos`, os 262 registros, os
+campos obrigatórios e a unicidade dos IDs.
+
+Também é necessário abrir a aplicação servida por HTTP e conferir:
+
+- carregamento da base, indicadores e gráficos;
+- filtros, seleção de furos e tabela;
+- acentuação, capitalização e mensagens de estado;
+- comportamento em desktop e em viewport móvel;
+- ausência de overflow horizontal e de erros no console.
 
 ## Publicação
 
-O workflow `.github/workflows/pages.yml` publica a raiz de `main` no GitHub
-Pages. O endereço esperado para o repositório `SILVAThiagoFerreira/qaqc-desmonte`
-é `https://silvathiagoferreira.github.io/qaqc-desmonte/`.
+O workflow [`.github/workflows/pages.yml`](.github/workflows/pages.yml) publica
+a raiz da branch `main` no GitHub Pages após cada push.
+
+Repositório: `SILVAThiagoFerreira/qaqc-desmonte`
+Página: <https://silvathiagoferreira.github.io/qaqc-desmonte/>
+
+A publicação só deve ser considerada concluída quando o workflow **Deploy
+QAQC dashboard to GitHub Pages** estiver concluído com sucesso e a página
+pública carregar a mesma versão de `index.html`, `styles.css`, `app.js`,
+`config.js` e `data/sample.json` do commit publicado.

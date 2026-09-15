@@ -2,7 +2,7 @@
   "use strict";
 
   const CONFIG = window.QAQC_CONFIG || {};
-  const UNITS = CONFIG.units || { depth: "", charge: "unid. fonte", stemming: "", diameter: "unid. fonte", delay: "ms" };
+  const UNITS = CONFIG.units || { depth: "", charge: "unid. da fonte", stemming: "", diameter: "unid. da fonte", delay: "ms" };
   const state = {
     dataset: null,
     sourceFiles: [],
@@ -12,13 +12,14 @@
     filtered: [],
     loading: false,
     sourceKind: "local",
-    sourceLabel: "Base local de referência",
+    sourceLabel: "Base de referência local",
   };
 
   const $ = (id) => document.getElementById(id);
   const numberFormat = new Intl.NumberFormat("pt-BR", { maximumFractionDigits: 2 });
   const integerFormat = new Intl.NumberFormat("pt-BR", { maximumFractionDigits: 0 });
   const percentFormat = new Intl.NumberFormat("pt-BR", { maximumFractionDigits: 1, signDisplay: "always" });
+  const rateFormat = new Intl.NumberFormat("pt-BR", { maximumFractionDigits: 1 });
 
   const requiredFields = [
     ["id", ["id", "furo", "numero do furo", "n do furo"]],
@@ -66,21 +67,25 @@
   }
 
   function formatNumber(value, digits = 2) {
-    if (!Number.isFinite(value)) return "n.a.";
+    if (!Number.isFinite(value)) return "N/D";
     return new Intl.NumberFormat("pt-BR", { minimumFractionDigits: 0, maximumFractionDigits: digits }).format(value);
   }
 
   function formatInteger(value) {
-    return Number.isFinite(value) ? integerFormat.format(value) : "n.a.";
+    return Number.isFinite(value) ? integerFormat.format(value) : "N/D";
   }
 
   function formatPercent(value) {
-    return Number.isFinite(value) ? percentFormat.format(value * 100) + "%" : "n.a.";
+    return Number.isFinite(value) ? percentFormat.format(value * 100) + "%" : "N/D";
+  }
+
+  function formatRate(value) {
+    return Number.isFinite(value) ? `${rateFormat.format(value * 100)}%` : "N/D";
   }
 
   function formatDate(value) {
     const text = String(value ?? "").trim();
-    if (!text) return "n.a.";
+    if (!text) return "N/D";
     const match = text.match(/^(\d{1,2})[/-](\d{1,2})[/-](\d{4})/);
     if (!match) return text;
     return `${match[1].padStart(2, "0")}/${match[2].padStart(2, "0")}/${match[3]}`;
@@ -91,7 +96,7 @@
   }
 
   function formatSigned(value, unit = "") {
-    if (!Number.isFinite(value)) return "n.a.";
+    if (!Number.isFinite(value)) return "N/D";
     const sign = value > 0 ? "+" : "";
     return `${sign}${formatNumber(value)}${unit ? ` ${unit}` : ""}`;
   }
@@ -100,9 +105,38 @@
     return `${formatNumber(value)}${unit ? ` ${unit}` : ""}`;
   }
 
+  function formatTypeLabel(value) {
+    const text = String(value ?? "").trim();
+    const normalized = normalizeText(text);
+    if (!text || normalized === "na" || normalized === "nd") return "Não informado";
+    if (normalized === "producao") return "Produção";
+    if (normalized === "preplit" || normalized === "presplit") return "Pré-corte";
+    if (normalized === "contorno") return "Contorno";
+    return text.charAt(0).toUpperCase() + text.slice(1);
+  }
+
   function average(rows, field) {
     const values = rows.map((row) => row[field]).filter(Number.isFinite);
     return values.length ? values.reduce((sum, value) => sum + value, 0) / values.length : null;
+  }
+
+  function averageValues(values) {
+    const valid = values.filter(Number.isFinite);
+    return valid.length ? valid.reduce((sum, value) => sum + value, 0) / valid.length : null;
+  }
+
+  function hasReference(value) {
+    return Number.isFinite(value) && Math.abs(value) >= 0.000001;
+  }
+
+  function pairedAverage(rows, plannedField, actualField) {
+    const pairs = rows.filter((row) => hasReference(row[plannedField]) && Number.isFinite(row[actualField]));
+    return {
+      planned: average(pairs, plannedField),
+      actual: average(pairs, actualField),
+      delta: averageValues(pairs.map((row) => row[actualField] - row[plannedField])),
+      count: pairs.length,
+    };
   }
 
   function median(values) {
@@ -163,11 +197,11 @@
     return index === undefined ? null : row[index];
   }
 
-  function makeFlag(label, delta, base, tolerance) {
-    if (!Number.isFinite(delta) || !Number.isFinite(base) || Math.abs(base) < 0.000001) return null;
+  function makeFlag(label, delta, base, tolerance, mode = "relative") {
+    if (!Number.isFinite(delta) || !hasReference(base) || !Number.isFinite(tolerance) || tolerance <= 0) return null;
     const relative = delta / Math.abs(base);
-    const score = Math.abs(relative) / tolerance;
-    return { label, delta, relative, score, tolerance };
+    const score = mode === "absolute" ? Math.abs(delta) / tolerance : Math.abs(relative) / tolerance;
+    return { label, delta, relative, score, tolerance, mode };
   }
 
   function makeHole(row, headerMap, rawIndex) {
@@ -184,18 +218,24 @@
     const flags = [
       makeFlag("Profundidade", depthDelta, depthPlanned, 0.10),
       makeFlag("Carga", chargeDelta, chargePlanned, 0.20),
-      makeFlag("Tampão", stemmingDelta, stemmingPlanned, 0.50),
+      makeFlag("Tampão", stemmingDelta, stemmingPlanned, 0.50, "absolute"),
     ].filter(Boolean);
-    const baselineMissing = [depthPlanned, chargePlanned, stemmingPlanned].some((value) => Number.isFinite(value) && value === 0);
-    const score = Math.max(flags.reduce((max, flag) => Math.max(max, flag.score), 0), baselineMissing ? 1 : 0);
+    const baselineMissing = [depthPlanned, chargePlanned, stemmingPlanned].some((value) => !hasReference(value));
+    const executionMissing = [
+      [depthPlanned, depthActual],
+      [chargePlanned, chargeActual],
+      [stemmingPlanned, stemmingActual],
+    ].some(([planned, actual]) => hasReference(planned) && !Number.isFinite(actual));
+    const notEvaluable = baselineMissing || executionMissing;
+    const score = Math.max(flags.reduce((max, flag) => Math.max(max, flag.score), 0), notEvaluable ? 1 : 0);
     const primary = flags.slice().sort((a, b) => b.score - a.score)[0] || null;
-    const severity = baselineMissing ? "amber" : score >= 2 ? "red" : score >= 1 ? "amber" : "green";
+    const severity = score >= 2 ? "red" : score >= 1 ? "amber" : "green";
 
     return {
       rawIndex,
       id: toNumber(read(["id", "furo", "numero do furo", "n do furo"])),
-      plan: String(read(["plano", "plan"]) ?? "n.a.").trim(),
-      type: String(read(["tipo", "type"]) ?? "n.a.").trim(),
+      plan: String(read(["plano", "plan"]) ?? "N/D").trim(),
+      type: String(read(["tipo", "type"]) ?? "N/D").trim(),
       date: String(read(["data", "date"]) ?? "").trim(),
       time: String(read(["horario", "hora", "time"]) ?? "").trim(),
       x: toNumber(read(["x", "easting"])),
@@ -219,17 +259,18 @@
       diameter: toNumber(read(["diametro", "diâmetro", "diameter"])),
       delay: toNumber(read(["tempo detonacao (ms)", "tempo detonação (ms)", "tempo detonacao", "delay"])),
       score,
-      primary: primary || (baselineMissing ? { label: "Sem previsto", delta: null, relative: null, score: 1, tolerance: null } : null),
+      primary: primary || (baselineMissing ? { label: "Sem referência", delta: null, relative: null, score: 1, tolerance: null } : executionMissing ? { label: "Não avaliável", delta: null, relative: null, score: 1, tolerance: null } : null),
       baselineMissing,
+      notEvaluable,
       severity,
-      statusLabel: baselineMissing ? "Sem previsto" : severity === "red" ? "Desvio alto" : severity === "amber" ? "Revisar" : "Dentro da faixa",
+      statusLabel: baselineMissing ? "Sem referência" : executionMissing ? "Não avaliável" : severity === "red" ? "Fora da faixa" : severity === "amber" ? "Em revisão" : "Conforme",
     };
   }
 
   function buildDataset(payload, fileMeta = {}) {
     const entries = getSheetEntries(payload);
     const holeEntry = findHoleSheet(entries);
-    if (!holeEntry) throw new Error("A fonte não possui uma aba com ID e profundidade realizada.");
+    if (!holeEntry) throw new Error("A planilha não contém uma aba com ID do furo e profundidade executada.");
     const rows = getSheetRows(holeEntry[1]);
     const headers = rows[0] || [];
     const headerMap = createHeaderMap(headers);
@@ -241,7 +282,7 @@
       .map((hole) => ({
         ...hole,
         sourceId: fileMeta.id || "local",
-        sourceName: fileMeta.name || payload.meta?.sourceFile || "Base local",
+        sourceName: fileMeta.name || payload.meta?.sourceFile || "Base de referência local",
         sourceUpdatedAt: fileMeta.updatedAt || payload.meta?.updatedAt || "",
       }));
     const summaryEntry = entries.find(([name]) => normalizeText(name) === "resumo");
@@ -252,12 +293,12 @@
         if (row[0] !== null && row[0] !== undefined && String(row[0]).trim()) summary[String(row[0]).trim()] = row[1];
       });
     }
-    if (!holes.length) throw new Error("A fonte foi lida, mas não há linhas válidas de furos.");
+    if (!holes.length) throw new Error("A planilha foi lida, mas não contém registros de furos válidos.");
     return {
       holes,
       summary,
       headers,
-      meta: { ...(payload.meta || {}), ...fileMeta, sourceFile: fileMeta.name || payload.meta?.sourceFile || "Fonte desconhecida" },
+      meta: { ...(payload.meta || {}), ...fileMeta, sourceFile: fileMeta.name || payload.meta?.sourceFile || "Fonte não identificada" },
     };
   }
 
@@ -283,18 +324,23 @@
   }
 
   function summarize(rows) {
-    const depthPlanned = average(rows, "depthPlanned");
-    const depthActual = average(rows, "depthActual");
-    const chargePlanned = average(rows, "chargePlanned");
-    const chargeActual = average(rows, "chargeActual");
-    const stemmingPlanned = average(rows, "stemmingPlanned");
-    const stemmingActual = average(rows, "stemmingActual");
+    const depthPair = pairedAverage(rows, "depthPlanned", "depthActual");
+    const chargePair = pairedAverage(rows, "chargePlanned", "chargeActual");
+    const stemmingPair = pairedAverage(rows, "stemmingPlanned", "stemmingActual");
+    const depthPlanned = depthPair.planned;
+    const depthActual = depthPair.actual;
+    const chargePlanned = chargePair.planned;
+    const chargeActual = chargePair.actual;
+    const stemmingPlanned = stemmingPair.planned;
+    const stemmingActual = stemmingPair.actual;
     const delays = rows.map((row) => row.delay).filter(Number.isFinite);
-    const depthDelta = Number.isFinite(depthPlanned) && Number.isFinite(depthActual) ? depthActual - depthPlanned : null;
-    const chargeDelta = Number.isFinite(chargePlanned) && Number.isFinite(chargeActual) ? chargeActual - chargePlanned : null;
-    const stemmingDelta = Number.isFinite(stemmingPlanned) && Number.isFinite(stemmingActual) ? stemmingActual - stemmingPlanned : null;
+    const depthDelta = depthPair.delta;
+    const chargeDelta = chargePair.delta;
+    const stemmingDelta = stemmingPair.delta;
+    const evaluable = rows.filter((row) => !row.notEvaluable).length;
     return {
       count: rows.length,
+      evaluable,
       plans: [...new Set(rows.map((row) => row.plan).filter(Boolean))],
       types: [...new Set(rows.map((row) => row.type).filter(Boolean))],
       dates: [...new Set(rows.map((row) => dateKey(row.date)).filter(Boolean))],
@@ -309,6 +355,10 @@
       review: rows.filter((row) => row.severity === "amber").length,
       high: rows.filter((row) => row.severity === "red").length,
       baselineMissing: rows.filter((row) => row.baselineMissing).length,
+      notEvaluable: rows.filter((row) => row.notEvaluable).length,
+      depthPairs: depthPair.count,
+      chargePairs: chargePair.count,
+      stemmingPairs: stemmingPair.count,
       delays,
       delayMin: delays.length ? Math.min(...delays) : null,
       delayMax: delays.length ? Math.max(...delays) : null,
@@ -333,17 +383,17 @@
     });
   }
 
-  function setSelectOptions(select, values, allLabel) {
+  function setSelectOptions(select, values, allLabel, formatValue = (value) => value) {
     const current = select.value;
-    select.innerHTML = `<option value="all">${escapeHtml(allLabel)}</option>` + values.map((value) => `<option value="${escapeHtml(value)}">${escapeHtml(value)}</option>`).join("");
+    select.innerHTML = `<option value="all">${escapeHtml(allLabel)}</option>` + values.map((value) => `<option value="${escapeHtml(value)}">${escapeHtml(formatValue(value))}</option>`).join("");
     if (["all", ...values].includes(current)) select.value = current;
   }
 
   function populateFilters() {
     const holes = state.dataset?.holes || [];
-    setSelectOptions($("plan-filter"), [...new Set(holes.map((row) => row.plan))].sort(), "Todos os planos");
-    setSelectOptions($("type-filter"), [...new Set(holes.map((row) => row.type))].sort(), "Todos os tipos");
-    setSelectOptions($("date-filter"), [...new Set(holes.map((row) => dateKey(row.date)))].sort(), "Todas as datas");
+    setSelectOptions($("plan-filter"), [...new Set(holes.map((row) => row.plan))].sort(), "Todos os planos de fogo");
+    setSelectOptions($("type-filter"), [...new Set(holes.map((row) => row.type))].sort(), "Todos os tipos de desmonte", formatTypeLabel);
+    setSelectOptions($("date-filter"), [...new Set(holes.map((row) => dateKey(row.date)))].sort(), "Todas as datas de desmonte");
   }
 
   function renderHeroGraphic() {
@@ -359,52 +409,55 @@
         <path d="M32 136h586M32 94h586M32 52h586" stroke="#ffffff" stroke-opacity=".14" stroke-dasharray="2 8"/>
         <path d="M32 138C120 130 179 143 259 130S415 135 618 115" fill="none" stroke="#2cabb6" stroke-width="2" stroke-opacity=".7"/>
         <g>${circles}</g>
-        <g fill="#d0ddda" font-family="monospace" font-size="9"><text x="32" y="158">EIXO X / COORDENADA</text><text x="517" y="31">QAQC / CAMPO</text></g>
+        <g fill="#c4d5d2" font-size="9"><text x="32" y="158">Malha de perfuração</text><text x="517" y="31">Controle de campo</text></g>
       </svg>`;
   }
 
   function renderSourceUi() {
     const select = $("file-select");
-    const allOption = state.sourceFiles.length > 1 ? `<option value="all">Todos os arquivos (${state.sourceFiles.length})</option>` : "";
+    const allOption = state.sourceFiles.length > 1 ? `<option value="all">Todas as planilhas (${state.sourceFiles.length})</option>` : "";
     select.innerHTML = state.sourceFiles.length
       ? allOption + state.sourceFiles.map((file) => `<option value="${escapeHtml(file.id)}">${escapeHtml(file.name)}</option>`).join("")
-      : `<option value="local">Base local de referência</option>`;
+      : `<option value="local">Base de referência local</option>`;
     select.disabled = !state.sourceFiles.length;
     if (state.selectedFileId === "all" && state.sourceFiles.length > 1) select.value = "all";
     else if (state.selectedFileId && state.sourceFiles.some((file) => file.id === state.selectedFileId)) select.value = state.selectedFileId;
     const markClass = state.sourceKind === "remote" ? "status-mark--remote" : state.sourceKind === "error" ? "status-mark--warn" : "status-mark--local";
     $("source-status").innerHTML = `<span class="status-mark ${markClass}" aria-hidden="true"></span><span>${escapeHtml(state.sourceLabel)}</span>`;
-    $("top-status").textContent = state.sourceKind === "remote" ? "Fonte Drive conectada" : state.sourceKind === "error" ? "Fonte com fallback" : "Base local de referência";
+    $("top-status").textContent = state.sourceKind === "remote" ? "Drive conectado" : state.sourceKind === "error" ? "Fallback para base local" : "Base de referência local";
   }
 
   function renderHero(summary) {
     const candidates = [
-      { key: "profundidade", delta: summary.depthDelta, pct: summary.depthPct, unit: UNITS.depth, label: "profundidade", article: "A" },
-      { key: "carga", delta: summary.chargeDelta, pct: summary.chargePct, unit: UNITS.charge, label: "carga", article: "A" },
-      { key: "tampão", delta: summary.stemmingDelta, pct: summary.stemmingPlanned ? summary.stemmingDelta / Math.abs(summary.stemmingPlanned) : null, unit: UNITS.stemming, label: "tampão", article: "O" },
+      { key: "profundidade", delta: summary.depthDelta, pct: summary.depthPct, unit: UNITS.depth, label: "Profundidade" },
+      { key: "carga", delta: summary.chargeDelta, pct: summary.chargePct, unit: UNITS.charge, label: "Carga" },
+      { key: "tampão", delta: summary.stemmingDelta, pct: summary.stemmingPlanned ? summary.stemmingDelta / Math.abs(summary.stemmingPlanned) : null, unit: UNITS.stemming, label: "Tampão" },
     ].filter((item) => Number.isFinite(item.pct));
     const lead = candidates.slice().sort((a, b) => Math.abs(b.pct) - Math.abs(a.pct))[0];
     if (lead && Math.abs(lead.pct) >= 0.02) {
       $("hero-focus").textContent = lead.label;
-      $("hero-focus-delta").textContent = `${formatSigned(lead.delta, lead.unit)} vs previsto`;
+      $("hero-focus-delta").textContent = `${formatPercent(lead.pct)} · ${formatSigned(lead.delta, lead.unit)} em relação ao planejado`;
     } else {
-      $("hero-focus").textContent = "Dentro da faixa";
-      $("hero-focus-delta").textContent = "sem desvio dominante";
+      $("hero-focus").textContent = "Nenhum parâmetro dominante";
+      $("hero-focus-delta").textContent = "Desvios médios dentro da faixa configurada";
     }
-    $("hero-plan").textContent = summary.plans.length ? `Plano ${summary.plans.join(", ")}` : "Plano n.a.";
-    $("hero-date").textContent = summary.dates.length ? summary.dates.join(", ") : "Data n.a.";
-    $("hero-count").textContent = `${formatInteger(summary.count)} furos`;
+    const compliance = summary.evaluable ? summary.within / summary.evaluable : null;
+    $("hero-compliance").textContent = formatRate(compliance);
+    $("hero-compliance-caption").textContent = Number.isFinite(compliance) ? `${formatInteger(summary.within)} de ${formatInteger(summary.evaluable)} furos avaliáveis classificados como conformes` : "Sem registros avaliáveis";
+    $("hero-plan").textContent = summary.plans.length ? `Plano de fogo ${summary.plans.join(", ")}` : "Plano de fogo N/D";
+    $("hero-date").textContent = summary.dates.length ? `Data do desmonte ${summary.dates.join(", ")}` : "Data do desmonte N/D";
+    $("hero-count").textContent = `${formatInteger(summary.count)} furos avaliados`;
   }
 
   function renderKpis(summary) {
     $("kpi-holes").textContent = formatInteger(summary.count);
-    $("kpi-holes-foot").textContent = summary.flagged ? `${formatInteger(summary.flagged)} exceções` : "sem exceções";
-    $("kpi-depth").textContent = withUnit(summary.depthActual, UNITS.depth);
-    $("kpi-depth-foot").textContent = `${formatPercent(summary.depthPct)} vs previsto`;
-    $("kpi-charge").textContent = withUnit(summary.chargeActual, UNITS.charge);
-    $("kpi-charge-foot").textContent = `${formatPercent(summary.chargePct)} vs previsto`;
-    $("kpi-attention").textContent = formatInteger(summary.flagged);
-    $("kpi-attention-foot").textContent = summary.baselineMissing ? `${formatInteger(summary.baselineMissing)} sem previsto` : `${formatInteger(summary.critical)} altos`;
+    $("kpi-holes-foot").textContent = summary.flagged ? `${formatInteger(summary.flagged)} exceções para verificação` : "Sem exceções no recorte";
+    $("kpi-depth").textContent = formatInteger(summary.within);
+    $("kpi-depth-foot").textContent = `${formatRate(summary.evaluable ? summary.within / summary.evaluable : null)} dos furos avaliáveis`;
+    $("kpi-charge").textContent = formatInteger(summary.review);
+    $("kpi-charge-foot").textContent = summary.review ? "Requerem conferência" : "Sem registros em revisão";
+    $("kpi-attention").textContent = formatInteger(summary.high);
+    $("kpi-attention-foot").textContent = summary.high ? "Prioridade alta" : summary.baselineMissing ? `${formatInteger(summary.baselineMissing)} sem referência` : "Sem ocorrências";
   }
 
   function severityClass(severity) {
@@ -415,7 +468,7 @@
     const mapRoot = $("hole-map");
     const coordinateRows = rows.filter((row) => Number.isFinite(row.x) && Number.isFinite(row.y));
     if (!coordinateRows.length) {
-      mapRoot.innerHTML = `<div class="empty-state">A fonte não tem coordenadas X/Y válidas para esta seleção.</div>`;
+      mapRoot.innerHTML = `<div class="empty-state">A fonte não contém coordenadas X/Y válidas para este recorte.</div>`;
       return;
     }
     const width = 840;
@@ -440,7 +493,7 @@
       const selected = String(row.id) === String(state.selectedHoleId);
       const radius = row.severity === "red" ? 5.2 : row.severity === "amber" ? 4.3 : 3.5;
       const selectedRing = selected ? `<circle class="selection-ring" cx="${x}" cy="${y}" r="${radius + 6}"/>` : "";
-      return `${selectedRing}<circle class="hole-point hole-point--${severityClass(row.severity)}${selected ? " hole-point--selected" : ""}" cx="${x}" cy="${y}" r="${radius}" data-hole-id="${escapeHtml(row.id)}" tabindex="0" role="button" aria-label="Furo ${escapeHtml(row.id)}, ${escapeHtml(row.statusLabel)}"><title>Furo ${escapeHtml(row.id)} · ${escapeHtml(row.statusLabel)} · ${escapeHtml(row.primary?.label || "sem desvio principal")}</title></circle>`;
+      return `${selectedRing}<circle class="hole-point hole-point--${severityClass(row.severity)}${selected ? " hole-point--selected" : ""}" cx="${x}" cy="${y}" r="${radius}" data-hole-id="${escapeHtml(row.id)}" tabindex="0" role="button" aria-label="Furo ${escapeHtml(row.id)}, ${escapeHtml(row.statusLabel)}"><title>Furo ${escapeHtml(row.id)} · ${escapeHtml(row.statusLabel)} · ${escapeHtml(row.primary?.label || "Sem parâmetro crítico")}</title></circle>`;
     }).join("");
     const labelX = [0, .5, 1].map((fraction) => `<text class="plot-label" x="${pad.left + fraction * (width - pad.left - pad.right)}" y="${height - 14}" text-anchor="middle">${formatNumber(minX + fraction * spanX, 1)}</text>`).join("");
     const labelY = [0, .5, 1].map((fraction) => `<text class="plot-label" x="16" y="${height - pad.bottom - fraction * (height - pad.top - pad.bottom) + 3}">${formatNumber(minY + fraction * spanY, 1)}</text>`).join("");
@@ -458,8 +511,8 @@
     const root = $("scatter-chart");
     const paired = rows.filter((row) => Number.isFinite(row.depthPct) && Number.isFinite(row.chargePct));
     if (!paired.length) {
-      root.innerHTML = `<div class="empty-state">Sem pares previsto × realizado para este recorte.</div>`;
-      $("scatter-tag").textContent = "sem pares";
+      root.innerHTML = `<div class="empty-state">Não há pares completos entre planejado e executado neste recorte.</div>`;
+      $("scatter-tag").textContent = "Sem pares completos";
       return;
     }
     const width = 760;
@@ -485,14 +538,14 @@
     }).join("");
     const zeroX = xPos(0);
     const zeroY = yPos(0);
-    root.innerHTML = `<svg class="scatter-svg" viewBox="0 0 ${width} ${height}" role="img" aria-label="Dispersão de ${paired.length} furos: profundidade no eixo X e carga no eixo Y"><rect x="0" y="0" width="${width}" height="${height}" fill="#fbfcfb"/>${grid}<line class="scatter-zero" x1="${zeroX}" y1="${pad.top}" x2="${zeroX}" y2="${height - pad.bottom}"/><line class="scatter-zero" x1="${pad.left}" y1="${zeroY}" x2="${width - pad.right}" y2="${zeroY}"/>${points}<text class="scatter-axis-label" x="${width - pad.right}" y="${height - 4}" text-anchor="end">Δ profundidade</text><text class="scatter-axis-label" x="${pad.left}" y="12">Δ carga</text></svg>`;
+     root.innerHTML = `<svg class="scatter-svg" viewBox="0 0 ${width} ${height}" role="img" aria-label="Dispersão de ${paired.length} furos: desvio relativo de profundidade no eixo X e de carga no eixo Y"><rect x="0" y="0" width="${width}" height="${height}" fill="#fbfcfb"/>${grid}<line class="scatter-zero" x1="${zeroX}" y1="${pad.top}" x2="${zeroX}" y2="${height - pad.bottom}"/><line class="scatter-zero" x1="${pad.left}" y1="${zeroY}" x2="${width - pad.right}" y2="${zeroY}"/>${points}<text class="scatter-axis-label" x="${width - pad.right}" y="${height - 4}" text-anchor="end">Desvio de profundidade</text><text class="scatter-axis-label" x="${pad.left}" y="12">Desvio de carga</text></svg>`;
     root.querySelectorAll("[data-hole-id]").forEach((node) => {
       node.addEventListener("click", () => selectHole(node.dataset.holeId));
       node.addEventListener("keydown", (event) => {
         if (event.key === "Enter" || event.key === " ") { event.preventDefault(); selectHole(node.dataset.holeId); }
       });
     });
-    $("scatter-tag").textContent = `${formatInteger(paired.length)} pares`;
+     $("scatter-tag").textContent = `${formatInteger(paired.length)} pares completos`;
   }
 
   function renderWaterfall(rows) {
@@ -500,7 +553,7 @@
     const total = rows.length;
     if (!total) {
       root.innerHTML = `<div class="empty-state">Sem furos no recorte.</div>`;
-      $("waterfall-tag").textContent = "sem dados";
+      $("waterfall-tag").textContent = "Sem dados";
       return;
     }
     const within = rows.filter((row) => row.severity === "green").length;
@@ -508,10 +561,10 @@
     const high = rows.filter((row) => row.severity === "red").length;
     const exceptions = review + high;
     const steps = [
-      { label: "Lidos", amount: total, kind: "total" },
-      { label: "Dentro", amount: -within, kind: "green" },
-      { label: "Revisar", amount: -review, kind: "amber" },
-      { label: "Alto", amount: -high, kind: "red" },
+      { label: "Avaliados", amount: total, kind: "total" },
+      { label: "Conformes", amount: -within, kind: "green" },
+      { label: "Em revisão", amount: -review, kind: "amber" },
+      { label: "Fora da faixa", amount: -high, kind: "red" },
     ];
     const width = 600;
     const height = 235;
@@ -536,14 +589,14 @@
       return `${connector}<rect class="waterfall-bar waterfall-bar--${step.kind}" x="${x}" y="${y}" width="${barWidth}" height="${h}" rx="3"><title>${escapeHtml(step.label)} · ${escapeHtml(label)}</title></rect><text class="waterfall-value" x="${x + barWidth / 2}" y="${Math.max(15, y - 7)}" text-anchor="middle">${escapeHtml(label)}</text><text class="waterfall-label" x="${x + barWidth / 2}" y="201" text-anchor="middle">${escapeHtml(step.label)}</text>`;
     }).join("");
     const remaining = formatInteger(running);
-    root.innerHTML = `<svg class="waterfall-svg" viewBox="0 0 ${width} ${height}" role="img" aria-label="Cascata de triagem: ${formatInteger(total)} furos lidos e ${formatInteger(exceptions)} exceções"><line class="waterfall-axis" x1="18" y1="${plotBottom}" x2="${width - 18}" y2="${plotBottom}"/>${bars}<text class="waterfall-end" x="${width - 23}" y="${yFor(running) - 8}" text-anchor="end">saldo ${remaining}</text></svg>`;
+     root.innerHTML = `<svg class="waterfall-svg" viewBox="0 0 ${width} ${height}" role="img" aria-label="Distribuição da conformidade: ${formatInteger(total)} furos avaliados e ${formatInteger(exceptions)} exceções"><line class="waterfall-axis" x1="18" y1="${plotBottom}" x2="${width - 18}" y2="${plotBottom}"/>${bars}<text class="waterfall-end" x="${width - 23}" y="${yFor(running) - 8}" text-anchor="end">Restante: ${remaining}</text></svg>`;
     $("waterfall-tag").textContent = `${formatInteger(exceptions)} exceções`;
   }
 
   function renderProfile(hole) {
     if (!hole) {
       $("selected-hole").textContent = "Furo —";
-      $("profile-illustration").innerHTML = `<div class="empty-state">Selecione um furo no mapa ou na tabela.</div>`;
+       $("profile-illustration").innerHTML = `<div class="empty-state">Selecione um furo no mapa ou na tabela para consultar o perfil.</div>`;
       $("profile-data").innerHTML = "";
       return;
     }
@@ -570,7 +623,7 @@
       <svg class="profile-svg" viewBox="0 0 196 350" role="img" aria-label="Perfil esquemático do furo ${escapeHtml(hole.id)}">
         <defs><pattern id="profile-grid" width="14" height="14" patternUnits="userSpaceOnUse"><path d="M14 0H0V14" fill="none" stroke="#d9e4e1" stroke-width=".6"/></pattern><linearGradient id="charge-gradient" x1="0" x2="1"><stop offset="0" stop-color="#f7a12f"/><stop offset="1" stop-color="#ed1b2f"/></linearGradient></defs>
         <rect x="4" y="5" width="188" height="340" rx="8" fill="url(#profile-grid)"/>
-        <text x="13" y="21" fill="#0d62a8" font-family="monospace" font-size="8">FURO ${escapeHtml(hole.id)}</text>
+         <text x="13" y="21" fill="#0d62a8" font-size="8">ID ${escapeHtml(hole.id)}</text>
         <path d="M42 38h92" stroke="#788d8f" stroke-width="1"/><path d="M42 34v8M134 34v8" stroke="#788d8f" stroke-width="1"/>
         <circle cx="88" cy="45" r="8" fill="#f7faf9" stroke="#1f2f38" stroke-width="1.3"/><circle cx="88" cy="45" r="3" fill="#ed1b2f"/>
         <rect x="${bodyX}" y="${bodyY}" width="${bodyW}" height="${bodyH}" rx="${bodyW / 2}" fill="#f7faf9" stroke="#1f2f38" stroke-width="1.5"/>
@@ -580,20 +633,20 @@
         <g>${cartridges}</g>
         <rect x="${bodyX + 7}" y="${bodyY + bodyH - subHeight}" width="${bodyW - 14}" height="${subHeight}" fill="#52656b" opacity=".94"/>
         <path d="M${bodyX + bodyW + 12} ${bodyY}h16M${bodyX + bodyW + 20} ${bodyY}v${bodyH}M${bodyX + bodyW + 12} ${bodyY + bodyH}h16" stroke="#8b9b9d" stroke-width="1"/>
-        <text x="${bodyX + bodyW + 27}" y="${bodyY + bodyH / 2}" fill="#607376" font-family="monospace" font-size="8" transform="rotate(90 ${bodyX + bodyW + 27} ${bodyY + bodyH / 2})">${withUnit(hole.depthActual, UNITS.depth)} real.</text>
-        <path d="M${bodyX - 7} ${chargeY}H26" stroke="${alertStroke}" stroke-width="1.5"/><circle cx="26" cy="${chargeY}" r="2" fill="${alertStroke}"/><text x="9" y="${chargeY - 5}" fill="${alertStroke}" font-family="monospace" font-size="8">carga</text>
-        <path d="M${bodyX - 7} ${bodyY + stemHeight / 2}H26" stroke="#6c7b7e" stroke-width="1"/><circle cx="26" cy="${bodyY + stemHeight / 2}" r="2" fill="#6c7b7e"/><text x="7" y="${bodyY + stemHeight / 2 - 5}" fill="#6c7b7e" font-family="monospace" font-size="8">tampão</text>
-        <path d="M${bodyX + 5} ${plannedY}h-15" stroke="#0d62a8" stroke-width="1.2" stroke-dasharray="2 2"/><text x="11" y="${Math.min(plannedY + 4, 324)}" fill="#0d62a8" font-family="monospace" font-size="8">previsto</text>
-        <text x="13" y="332" fill="#809392" font-family="monospace" font-size="8">cápsulas / tampão / subfuração</text>
-      </svg>`;
-    const rows = [
-      ["Profundidade", withUnit(hole.depthActual, UNITS.depth), hole.depthDelta],
-      ["Carga realizada", withUnit(hole.chargeActual, UNITS.charge), hole.chargeDelta],
-      ["Tampão realizado", withUnit(hole.stemmingActual, UNITS.stemming), hole.stemmingDelta],
-      ["Tempo de detonação", `${formatInteger(hole.delay)} ${UNITS.delay}`, null],
-      ["Azimute / inclinação", `${formatNumber(hole.azimuth, 0)}° / ${formatNumber(hole.inclination, 0)}°`, null],
-    ];
-    $("profile-data").innerHTML = `<div class="profile-kicker">${escapeHtml(hole.statusLabel)} · ${escapeHtml(hole.type)}</div>${rows.map(([label, value, delta]) => `<div class="profile-data-row"><span>${escapeHtml(label)}</span><strong class="${Number.isFinite(delta) && Math.abs(delta) > 0.0001 ? "is-alert" : ""}">${escapeHtml(value)}${Number.isFinite(delta) ? ` <small>(${escapeHtml(formatSigned(delta))})</small>` : ""}</strong></div>`).join("")}`;
+        <text x="${bodyX + bodyW + 27}" y="${bodyY + bodyH / 2}" fill="#607376" font-family="monospace" font-size="8" transform="rotate(90 ${bodyX + bodyW + 27} ${bodyY + bodyH / 2})">${withUnit(hole.depthActual, UNITS.depth)} execut.</text>
+         <path d="M${bodyX - 7} ${chargeY}H26" stroke="${alertStroke}" stroke-width="1.5"/><circle cx="26" cy="${chargeY}" r="2" fill="${alertStroke}"/><text x="9" y="${chargeY - 5}" fill="${alertStroke}" font-size="8">Carga explosiva</text>
+         <path d="M${bodyX - 7} ${bodyY + stemHeight / 2}H26" stroke="#6c7b7e" stroke-width="1"/><circle cx="26" cy="${bodyY + stemHeight / 2}" r="2" fill="#6c7b7e"/><text x="7" y="${bodyY + stemHeight / 2 - 5}" fill="#6c7b7e" font-size="8">Tampão</text>
+         <path d="M${bodyX + 5} ${plannedY}h-15" stroke="#0d62a8" stroke-width="1.2" stroke-dasharray="2 2"/><text x="11" y="${Math.min(plannedY + 4, 324)}" fill="#0d62a8" font-size="8">Planejado</text>
+         <text x="13" y="332" fill="#809392" font-size="8">Carga / tampão / subperfuração</text>
+       </svg>`;
+     const rows = [
+       ["Profundidade executada", withUnit(hole.depthActual, UNITS.depth), hole.depthDelta],
+       ["Carga carregada", withUnit(hole.chargeActual, UNITS.charge), hole.chargeDelta],
+       ["Tampão executado", withUnit(hole.stemmingActual, UNITS.stemming), hole.stemmingDelta],
+       ["Tempo de iniciação", withUnit(hole.delay, UNITS.delay), null],
+       ["Azimute / inclinação", `${formatNumber(hole.azimuth, 0)}° / ${formatNumber(hole.inclination, 0)}°`, null],
+     ];
+     $("profile-data").innerHTML = `<div class="profile-kicker">${escapeHtml(hole.statusLabel)} · ${escapeHtml(formatTypeLabel(hole.type))}</div>${rows.map(([label, value, delta]) => `<div class="profile-data-row"><span>${escapeHtml(label)}</span><strong class="${Number.isFinite(delta) && Math.abs(delta) > 0.0001 ? "is-alert" : ""}">${escapeHtml(value)}${Number.isFinite(delta) ? ` <small>(${escapeHtml(formatSigned(delta))})</small>` : ""}</strong></div>`).join("")}`;
   }
 
   function renderCompare(summary) {
@@ -605,15 +658,19 @@
     $("compare-chart").innerHTML = metrics.map(([label, planned, actual, unit]) => {
       const maximum = Math.max(planned || 0, actual || 0, 1);
       const displayUnit = label === "Carga" ? UNITS.charge : label === "Tampão" ? UNITS.stemming : UNITS.depth;
-      return `<div class="compare-row"><span class="compare-label">${escapeHtml(label)}</span><div class="compare-track"><span class="compare-bar compare-bar--planned" style="width:${Math.max(2, (planned / maximum) * 100)}%"></span><span class="compare-bar compare-bar--actual" style="width:${Math.max(2, (actual / maximum) * 100)}%"></span></div><span class="compare-value">${withUnit(actual, displayUnit)}<small>${formatPercent(planned ? (actual - planned) / Math.abs(planned) : null)}</small></span></div>`;
+      const plannedWidth = Number.isFinite(planned) ? Math.max(2, (planned / maximum) * 100) : 2;
+      const actualWidth = Number.isFinite(actual) ? Math.max(2, (actual / maximum) * 100) : 2;
+      const delta = Number.isFinite(planned) && planned !== 0 && Number.isFinite(actual) ? (actual - planned) / Math.abs(planned) : null;
+      return `<div class="compare-row"><span class="compare-label">${escapeHtml(label)}</span><div class="compare-track"><span class="compare-bar compare-bar--planned" style="width:${plannedWidth}%"></span><span class="compare-bar compare-bar--actual" style="width:${actualWidth}%"></span></div><span class="compare-value">${withUnit(actual, displayUnit)}<small>${formatPercent(delta)}</small></span></div>`;
     }).join("");
   }
 
   function renderRanking(rows) {
     const ranked = rows.filter((row) => row.primary).slice().sort((a, b) => b.score - a.score || a.id - b.id).slice(0, 7);
-    $("ranking-tag").textContent = `${formatInteger(rows.filter((row) => row.severity !== "green").length)} exceções`;
+    const exceptionCount = rows.filter((row) => row.severity !== "green").length;
+    $("ranking-tag").textContent = `${formatInteger(exceptionCount)} exceções · ${formatInteger(ranked.length)} principais`;
     if (!ranked.length) {
-      $("ranking-list").innerHTML = `<div class="empty-state">Nenhum desvio acima das faixas visuais.</div>`;
+       $("ranking-list").innerHTML = `<div class="empty-state">Nenhum registro fora das faixas configuradas.</div>`;
       return;
     }
     const maximum = Math.max(...ranked.map((row) => row.score), 1);
@@ -621,16 +678,16 @@
       const metric = row.primary;
       const deltaUnit = metric.label === "Carga" ? UNITS.charge : metric.label === "Tampão" ? UNITS.stemming : UNITS.depth;
       const fillClass = row.severity === "red" ? "ranking-fill--red" : "";
-      const metricText = metric.label === "Sem previsto" ? "referência ausente" : `${metric.label} · ${formatPercent(metric.relative)}`;
-      const deltaText = Number.isFinite(metric.delta) ? formatSigned(metric.delta, deltaUnit) : "n.a.";
-      return `<button class="ranking-item ranking-button" type="button" data-hole-id="${escapeHtml(row.id)}"><span class="ranking-hole">${escapeHtml(row.id)}</span><span class="ranking-metric">${escapeHtml(metricText)}</span><span class="ranking-track"><span class="ranking-fill ${fillClass}" style="width:${Math.min(100, (row.score / maximum) * 100)}%"></span></span><span class="ranking-delta">${escapeHtml(deltaText)}</span></button>`;
+       const metricText = metric.label === "Sem referência" ? "Referência ausente" : metric.label === "Não avaliável" ? "Não avaliável" : `${metric.label} · ${formatPercent(metric.relative)}`;
+       const deltaText = Number.isFinite(metric.delta) ? formatSigned(metric.delta, deltaUnit) : "N/D";
+       return `<button class="ranking-item ranking-button" type="button" data-hole-id="${escapeHtml(row.id)}" aria-label="Furo ${escapeHtml(row.id)}: ${escapeHtml(metricText)}, desvio ${escapeHtml(deltaText)}"><span class="ranking-hole">${escapeHtml(row.id)}</span><span class="ranking-metric">${escapeHtml(metricText)}</span><span class="ranking-track"><span class="ranking-fill ${fillClass}" style="width:${Math.min(100, (row.score / maximum) * 100)}%"></span></span><span class="ranking-delta">${escapeHtml(deltaText)}</span></button>`;
     }).join("");
     $("ranking-list").querySelectorAll("[data-hole-id]").forEach((node) => node.addEventListener("click", () => selectHole(node.dataset.holeId)));
   }
 
   function renderTiming(rows, summary) {
     if (!summary.delays.length || summary.delayMin === summary.delayMax) {
-      $("timing-chart").innerHTML = `<div class="empty-state">A fonte não traz uma janela variável de detonação.</div>`;
+       $("timing-chart").innerHTML = `<div class="empty-state">A fonte não apresenta variação nos tempos de iniciação neste recorte.</div>`;
       $("timing-tag").textContent = summary.delays.length ? `${formatInteger(summary.delayMin)} ms` : "Sem dados";
       return;
     }
@@ -640,7 +697,7 @@
     const position = (value) => `${Math.max(0, Math.min(100, ((value - min) / span) * 100))}%`;
     const dots = rows.filter((row) => Number.isFinite(row.delay)).sort((a, b) => a.delay - b.delay).filter((row, index) => index % Math.max(1, Math.ceil(rows.length / 70)) === 0).map((row) => `<span class="timing-dot ${row.severity === "red" ? "timing-dot--focus" : ""}" style="left:${position(row.delay)}; bottom:${row.severity === "red" ? "69px" : "57px"}" title="Furo ${escapeHtml(row.id)} · ${formatInteger(row.delay)} ms"></span>`).join("");
     const medianPosition = position(summary.delayMedian);
-    $("timing-chart").innerHTML = `<div class="timing-band"></div><div class="timing-axis"></div>${dots}<span class="timing-median" style="left:calc(15px + ${medianPosition} * (100% - 30px))"></span><span class="timing-median-label" style="left:calc(15px + ${medianPosition} * (100% - 30px))">mediana ${formatInteger(summary.delayMedian)} ms</span><span class="timing-tick" style="left:15px">${formatInteger(min)}</span><span class="timing-tick" style="left:50%">${formatInteger(min + span / 2)}</span><span class="timing-tick" style="right:0; transform:none">${formatInteger(max)}</span>`;
+    $("timing-chart").innerHTML = `<div class="timing-band"></div><div class="timing-axis"></div>${dots}<span class="timing-median" style="left:calc(15px + ${medianPosition} * (100% - 30px))"></span><span class="timing-median-label" style="left:calc(15px + ${medianPosition} * (100% - 30px))">Mediana ${formatInteger(summary.delayMedian)} ms</span><span class="timing-tick" style="left:15px">${formatInteger(min)}</span><span class="timing-tick" style="left:50%">${formatInteger(min + span / 2)}</span><span class="timing-tick" style="right:0; transform:none">${formatInteger(max)}</span>`;
     $("timing-tag").textContent = `${formatInteger(summary.delayMin)}–${formatInteger(summary.delayMax)} ms`;
   }
 
@@ -652,9 +709,9 @@
       $("table-footer").textContent = "Sem registros no recorte";
       return;
     }
-    $("holes-table-body").innerHTML = visible.map((row) => `<tr><td><button class="table-hole-button" type="button" data-hole-id="${escapeHtml(row.id)}">${escapeHtml(row.id)}</button></td><td><span class="status-pill status-pill--${severityClass(row.severity)}">${escapeHtml(row.statusLabel)}</span></td><td>${withUnit(row.depthPlanned, UNITS.depth)}</td><td>${withUnit(row.depthActual, UNITS.depth)}</td><td>${withUnit(row.chargePlanned, UNITS.charge)}</td><td>${withUnit(row.chargeActual, UNITS.charge)}</td><td>${withUnit(row.stemmingActual, UNITS.stemming)}</td><td>${formatInteger(row.delay)} ${UNITS.delay}</td></tr>`).join("");
+     $("holes-table-body").innerHTML = visible.map((row) => `<tr><td data-label="ID do furo"><button class="table-hole-button" type="button" data-hole-id="${escapeHtml(row.id)}">${escapeHtml(row.id)}</button></td><td data-label="Conformidade"><span class="status-pill status-pill--${severityClass(row.severity)}">${escapeHtml(row.statusLabel)}</span></td><td data-label="Profundidade planejada">${withUnit(row.depthPlanned, UNITS.depth)}</td><td data-label="Profundidade executada">${withUnit(row.depthActual, UNITS.depth)}</td><td data-label="Carga planejada">${withUnit(row.chargePlanned, UNITS.charge)}</td><td data-label="Carga carregada">${withUnit(row.chargeActual, UNITS.charge)}</td><td data-label="Tampão executado">${withUnit(row.stemmingActual, UNITS.stemming)}</td><td data-label="Tempo de iniciação">${withUnit(row.delay, UNITS.delay)}</td></tr>`).join("");
     $("holes-table-body").querySelectorAll("[data-hole-id]").forEach((node) => node.addEventListener("click", () => selectHole(node.dataset.holeId)));
-    $("table-footer").textContent = `Mostrando ${formatInteger(visible.length)} de ${formatInteger(rows.length)} furos no recorte · ordenado por prioridade de revisão`;
+     $("table-footer").textContent = `Exibindo ${formatInteger(visible.length)} de ${formatInteger(rows.length)} furos · ordenado pela prioridade de verificação`;
   }
 
   function renderAll() {
@@ -712,7 +769,7 @@
       if (!response.ok) throw new Error(`HTTP ${response.status}`);
       const body = await response.text();
       const payload = JSON.parse(body);
-      if (payload.ok === false) throw new Error(payload.error || "A fonte devolveu um erro.");
+      if (payload.ok === false) throw new Error(payload.error || "A fonte devolveu um erro de leitura.");
       return payload;
     } catch (error) {
       return fetchJsonp(target);
@@ -753,12 +810,12 @@
     return combineDatasets(payloads.map((payload, index) => buildDataset(payload, files[index])));
   }
 
-  async function loadSample(reason = "Base local de referência") {
+  async function loadSample(reason = "Base de referência local") {
     const response = await fetch(appendParams(CONFIG.sampleUrl || "data/sample.json", { t: Date.now() }), { cache: "no-store" });
-    if (!response.ok) throw new Error("Fixture local indisponível.");
+    if (!response.ok) throw new Error("Base de referência local indisponível.");
     const payload = await response.json();
     state.dataset = buildDataset(payload, { name: payload.meta?.sourceFile || "data/sample.json" });
-    state.sourceKind = reason.startsWith("Falha") ? "error" : "local";
+      state.sourceKind = reason.startsWith("Falha") ? "error" : "local";
     state.sourceLabel = reason;
     state.selectedFileId = "";
     populateFilters();
@@ -770,19 +827,19 @@
     if (state.loading) return;
     state.loading = true;
     $("refresh-data").disabled = true;
-    $("top-status").textContent = "Atualizando fonte";
+      $("top-status").textContent = "Atualizando dados";
     try {
       const endpointFromQuery = new URLSearchParams(window.location.search).get("drive");
       const endpoint = endpointFromQuery || CONFIG.driveIndexUrl || "";
       state.driveEndpoint = endpoint;
       if (!endpoint) {
-        await loadSample("Base local de referência");
+        await loadSample("Base de referência local");
         return;
       }
       const listing = await fetchJson(endpoint);
       state.sourceFiles = Array.isArray(listing.files) ? listing.files : [];
       if (!state.sourceFiles.length) {
-        await loadSample("Drive conectado · nenhum arquivo ainda");
+        await loadSample("Drive conectado · nenhuma planilha encontrada");
         state.sourceKind = "remote";
         renderSourceUi();
         return;
@@ -804,7 +861,7 @@
       populateFilters();
       renderSourceUi();
       renderAll();
-      showToast(shouldCombine ? `Fontes atualizadas: ${state.sourceFiles.length} arquivos` : `Fonte atualizada: ${state.dataset.meta.sourceFile}`);
+      showToast(shouldCombine ? `Planilhas atualizadas: ${state.sourceFiles.length}` : `Planilha atualizada: ${state.dataset.meta.sourceFile}`);
     } catch (error) {
       state.sourceFiles = [];
       await loadSample(`Falha na fonte · usando base local`);
@@ -818,7 +875,7 @@
 
   function formatBytes(value) {
     const bytes = toNumber(value);
-    if (!Number.isFinite(bytes)) return "tamanho n.a.";
+    if (!Number.isFinite(bytes)) return "tamanho não disponível";
     if (bytes < 1024) return `${formatInteger(bytes)} B`;
     if (bytes < 1024 * 1024) return `${formatNumber(bytes / 1024, 1)} KB`;
     return `${formatNumber(bytes / (1024 * 1024), 1)} MB`;
@@ -846,7 +903,7 @@
     $("file-select").addEventListener("change", (event) => loadSource(event.target.value));
     $("selected-hole").addEventListener("click", () => {
       const row = state.dataset?.holes.find((hole) => String(hole.id) === String(state.selectedHoleId));
-      if (row) showToast(`Furo ${row.id}: ${row.statusLabel}`);
+      if (row) showToast(`Furo ${row.id} · ${row.statusLabel}`);
     });
   }
 

@@ -11,9 +11,9 @@ window.QAQC_CONFIG = {
   // explicit so the dashboard never silently invents a unit.
   units: {
     depth: "",
-    charge: "unid. fonte",
+    charge: "unid. da fonte",
     stemming: "",
-    diameter: "unid. fonte",
+    diameter: "unid. da fonte",
     delay: "ms"
   },
   refreshMs: 300000
