@@ -12,7 +12,8 @@
     filtered: [],
     loading: false,
     sourceKind: "local",
-    sourceLabel: "Base de referência local",
+    sourceLabel: "Fonte local",
+    statusFilter: "all",
   };
 
   const $ = (id) => document.getElementById(id);
@@ -20,6 +21,7 @@
   const integerFormat = new Intl.NumberFormat("pt-BR", { maximumFractionDigits: 0 });
   const percentFormat = new Intl.NumberFormat("pt-BR", { maximumFractionDigits: 1, signDisplay: "always" });
   const rateFormat = new Intl.NumberFormat("pt-BR", { maximumFractionDigits: 1 });
+  const statusFilterLabels = { all: "Todos os furos", green: "Conforme", amber: "Em revisão", red: "Fora da faixa" };
 
   const requiredFields = [
     ["id", ["id", "furo", "numero do furo", "n do furo"]],
@@ -282,7 +284,7 @@
       .map((hole) => ({
         ...hole,
         sourceId: fileMeta.id || "local",
-        sourceName: fileMeta.name || payload.meta?.sourceFile || "Base de referência local",
+        sourceName: fileMeta.name || payload.meta?.sourceFile || "Fonte local",
         sourceUpdatedAt: fileMeta.updatedAt || payload.meta?.updatedAt || "",
       }));
     const summaryEntry = entries.find(([name]) => normalizeText(name) === "resumo");
@@ -378,8 +380,9 @@
       const matchesPlan = plan === "all" || row.plan === plan;
       const matchesType = type === "all" || row.type === type;
       const matchesDate = date === "all" || dateKey(row.date) === date;
+      const matchesStatus = state.statusFilter === "all" || row.severity === state.statusFilter;
       const matchesQuery = !query || String(row.id).toLowerCase().includes(query);
-      return matchesPlan && matchesType && matchesDate && matchesQuery;
+      return matchesPlan && matchesType && matchesDate && matchesStatus && matchesQuery;
     });
   }
 
@@ -405,11 +408,10 @@
     $("hero-graphic").innerHTML = `
       <svg class="hero-drill-svg" viewBox="0 0 650 180" role="img" aria-label="Malha esquemática com furos de perfuração">
         <defs><pattern id="hero-grid" width="26" height="26" patternUnits="userSpaceOnUse"><path d="M26 0H0V26" fill="none" stroke="#ffffff" stroke-opacity=".1"/></pattern></defs>
-        <rect x="12" y="12" width="626" height="156" rx="8" fill="url(#hero-grid)"/>
+        <rect x="12" y="12" width="626" height="156" fill="url(#hero-grid)"/>
         <path d="M32 136h586M32 94h586M32 52h586" stroke="#ffffff" stroke-opacity=".14" stroke-dasharray="2 8"/>
         <path d="M32 138C120 130 179 143 259 130S415 135 618 115" fill="none" stroke="#2cabb6" stroke-width="2" stroke-opacity=".7"/>
         <g>${circles}</g>
-        <g fill="#c4d5d2" font-size="9"><text x="32" y="158">Malha de perfuração</text><text x="517" y="31">Controle de campo</text></g>
       </svg>`;
   }
 
@@ -418,13 +420,13 @@
     const allOption = state.sourceFiles.length > 1 ? `<option value="all">Todas as planilhas (${state.sourceFiles.length})</option>` : "";
     select.innerHTML = state.sourceFiles.length
       ? allOption + state.sourceFiles.map((file) => `<option value="${escapeHtml(file.id)}">${escapeHtml(file.name)}</option>`).join("")
-      : `<option value="local">Base de referência local</option>`;
+      : `<option value="local">Fonte local</option>`;
     select.disabled = !state.sourceFiles.length;
     if (state.selectedFileId === "all" && state.sourceFiles.length > 1) select.value = "all";
     else if (state.selectedFileId && state.sourceFiles.some((file) => file.id === state.selectedFileId)) select.value = state.selectedFileId;
     const markClass = state.sourceKind === "remote" ? "status-mark--remote" : state.sourceKind === "error" ? "status-mark--warn" : "status-mark--local";
     $("source-status").innerHTML = `<span class="status-mark ${markClass}" aria-hidden="true"></span><span>${escapeHtml(state.sourceLabel)}</span>`;
-    $("top-status").textContent = state.sourceKind === "remote" ? "Drive conectado" : state.sourceKind === "error" ? "Fallback para base local" : "Base de referência local";
+    $("top-status").textContent = state.sourceKind === "remote" ? "Drive conectado" : state.sourceKind === "error" ? "Fonte alternativa" : "Fonte carregada";
   }
 
   function renderHero(summary) {
@@ -464,6 +466,48 @@
     return severity === "red" ? "red" : severity === "amber" ? "amber" : "green";
   }
 
+  function hideChartTooltip() {
+    const tooltip = $("chart-tooltip");
+    if (!tooltip) return;
+    tooltip.classList.remove("is-visible");
+    tooltip.setAttribute("aria-hidden", "true");
+  }
+
+  function showChartTooltip(node, event) {
+    const tooltip = $("chart-tooltip");
+    const message = node?.dataset.chartTooltip;
+    if (!tooltip || !message) return;
+    tooltip.textContent = message;
+    tooltip.classList.add("is-visible");
+    tooltip.setAttribute("aria-hidden", "false");
+    const rect = node.getBoundingClientRect();
+    const pointerX = event?.clientX ?? rect.left + rect.width / 2;
+    const pointerY = event?.clientY ?? rect.top + rect.height / 2;
+    const left = Math.max(10, Math.min(pointerX + 14, window.innerWidth - tooltip.offsetWidth - 10));
+    const above = pointerY - tooltip.offsetHeight - 14;
+    const top = above > 10 ? above : Math.min(window.innerHeight - tooltip.offsetHeight - 10, pointerY + 14);
+    tooltip.style.left = `${left}px`;
+    tooltip.style.top = `${Math.max(10, top)}px`;
+  }
+
+  function bindChartTooltips(root) {
+    root.querySelectorAll("[data-chart-tooltip]").forEach((node) => {
+      node.addEventListener("pointerenter", (event) => showChartTooltip(node, event));
+      node.addEventListener("pointermove", (event) => showChartTooltip(node, event));
+      node.addEventListener("pointerleave", hideChartTooltip);
+      node.addEventListener("focus", () => showChartTooltip(node));
+      node.addEventListener("blur", hideChartTooltip);
+    });
+  }
+
+  function applyStatusFilter(value) {
+    if (!Object.hasOwn(statusFilterLabels, value)) return;
+    state.statusFilter = value;
+    renderAll();
+    if (value !== "all") $("table-title")?.scrollIntoView({ behavior: "smooth", block: "start" });
+    showToast(`Filtro aplicado: ${statusFilterLabels[value]}`);
+  }
+
   function renderMap(rows) {
     const mapRoot = $("hole-map");
     const coordinateRows = rows.filter((row) => Number.isFinite(row.x) && Number.isFinite(row.y));
@@ -493,7 +537,8 @@
       const selected = String(row.id) === String(state.selectedHoleId);
       const radius = row.severity === "red" ? 5.2 : row.severity === "amber" ? 4.3 : 3.5;
       const selectedRing = selected ? `<circle class="selection-ring" cx="${x}" cy="${y}" r="${radius + 6}"/>` : "";
-      return `${selectedRing}<circle class="hole-point hole-point--${severityClass(row.severity)}${selected ? " hole-point--selected" : ""}" cx="${x}" cy="${y}" r="${radius}" data-hole-id="${escapeHtml(row.id)}" tabindex="0" role="button" aria-label="Furo ${escapeHtml(row.id)}, ${escapeHtml(row.statusLabel)}"><title>Furo ${escapeHtml(row.id)} · ${escapeHtml(row.statusLabel)} · ${escapeHtml(row.primary?.label || "Sem parâmetro crítico")}</title></circle>`;
+      const tooltip = `Furo ${row.id} · ${row.statusLabel} · ${row.primary?.label || "Sem parâmetro crítico"}`;
+      return `${selectedRing}<circle class="hole-point hole-point--${severityClass(row.severity)}${selected ? " hole-point--selected" : ""}" cx="${x}" cy="${y}" r="${radius}" data-hole-id="${escapeHtml(row.id)}" data-chart-tooltip="${escapeHtml(tooltip)}" tabindex="0" role="button" aria-label="Furo ${escapeHtml(row.id)}, ${escapeHtml(row.statusLabel)}"><title>${escapeHtml(tooltip)}</title></circle>`;
     }).join("");
     const labelX = [0, .5, 1].map((fraction) => `<text class="plot-label" x="${pad.left + fraction * (width - pad.left - pad.right)}" y="${height - 14}" text-anchor="middle">${formatNumber(minX + fraction * spanX, 1)}</text>`).join("");
     const labelY = [0, .5, 1].map((fraction) => `<text class="plot-label" x="16" y="${height - pad.bottom - fraction * (height - pad.top - pad.bottom) + 3}">${formatNumber(minY + fraction * spanY, 1)}</text>`).join("");
@@ -504,6 +549,7 @@
         if (event.key === "Enter" || event.key === " ") { event.preventDefault(); selectHole(node.dataset.holeId); }
       });
     });
+    bindChartTooltips(mapRoot);
     $("map-tag").textContent = `${formatInteger(coordinateRows.length)} pontos`;
   }
 
@@ -534,7 +580,10 @@
       const x = xPos(row.depthPct * 100).toFixed(2);
       const y = yPos(row.chargePct * 100).toFixed(2);
       const radius = row.severity === "red" ? 5.5 : row.severity === "amber" ? 4.5 : 3.8;
-      return `<circle class="scatter-point scatter-point--${severityClass(row.severity)}" cx="${x}" cy="${y}" r="${radius}" data-hole-id="${escapeHtml(row.id)}" tabindex="0" role="button" aria-label="Furo ${escapeHtml(row.id)}, profundidade ${escapeHtml(formatPercent(row.depthPct))}, carga ${escapeHtml(formatPercent(row.chargePct))}"><title>Furo ${escapeHtml(row.id)} · profundidade ${escapeHtml(formatPercent(row.depthPct))} · carga ${escapeHtml(formatPercent(row.chargePct))}</title></circle>`;
+      const selected = String(row.id) === String(state.selectedHoleId);
+      const selectedRing = selected ? `<circle class="selection-ring" cx="${x}" cy="${y}" r="${radius + 5}"/>` : "";
+      const tooltip = `Furo ${row.id} · profundidade ${formatPercent(row.depthPct)} · carga ${formatPercent(row.chargePct)}`;
+      return `${selectedRing}<circle class="scatter-point scatter-point--${severityClass(row.severity)}${selected ? " scatter-point--selected" : ""}" cx="${x}" cy="${y}" r="${radius}" data-hole-id="${escapeHtml(row.id)}" data-chart-tooltip="${escapeHtml(tooltip)}" tabindex="0" role="button" aria-label="Furo ${escapeHtml(row.id)}, profundidade ${escapeHtml(formatPercent(row.depthPct))}, carga ${escapeHtml(formatPercent(row.chargePct))}"><title>${escapeHtml(tooltip)}</title></circle>`;
     }).join("");
     const zeroX = xPos(0);
     const zeroY = yPos(0);
@@ -545,6 +594,7 @@
         if (event.key === "Enter" || event.key === " ") { event.preventDefault(); selectHole(node.dataset.holeId); }
       });
     });
+    bindChartTooltips(root);
      $("scatter-tag").textContent = `${formatInteger(paired.length)} pares completos`;
   }
 
@@ -561,10 +611,10 @@
     const high = rows.filter((row) => row.severity === "red").length;
     const exceptions = review + high;
     const steps = [
-      { label: "Avaliados", amount: total, kind: "total" },
-      { label: "Conformes", amount: -within, kind: "green" },
-      { label: "Em revisão", amount: -review, kind: "amber" },
-      { label: "Fora da faixa", amount: -high, kind: "red" },
+      { label: "Avaliados", amount: total, kind: "total", filter: "all" },
+      { label: "Conformes", amount: -within, kind: "green", filter: "green" },
+      { label: "Em revisão", amount: -review, kind: "amber", filter: "amber" },
+      { label: "Fora da faixa", amount: -high, kind: "red", filter: "red" },
     ];
     const width = 600;
     const height = 235;
@@ -586,63 +636,83 @@
       const h = Math.max(3, yFor(low) - y);
       const connector = index ? `<line class="waterfall-connector" x1="${x - gap}" y1="${yFor(previous)}" x2="${x}" y2="${yFor(previous)}"/>` : "";
       const label = step.amount < 0 ? `−${formatInteger(Math.abs(step.amount))}` : formatInteger(step.amount);
-      return `${connector}<rect class="waterfall-bar waterfall-bar--${step.kind}" x="${x}" y="${y}" width="${barWidth}" height="${h}" rx="3"><title>${escapeHtml(step.label)} · ${escapeHtml(label)}</title></rect><text class="waterfall-value" x="${x + barWidth / 2}" y="${Math.max(15, y - 7)}" text-anchor="middle">${escapeHtml(label)}</text><text class="waterfall-label" x="${x + barWidth / 2}" y="201" text-anchor="middle">${escapeHtml(step.label)}</text>`;
+      const tooltip = `${step.label}: ${formatInteger(Math.abs(step.amount))} furos · clique para filtrar o detalhamento`;
+      return `${connector}<rect class="waterfall-bar waterfall-bar--${step.kind}" x="${x}" y="${y}" width="${barWidth}" height="${h}" tabindex="0" role="button" data-status-filter="${step.filter}" data-chart-tooltip="${escapeHtml(tooltip)}" aria-label="${escapeHtml(tooltip)}"><title>${escapeHtml(tooltip)}</title></rect><text class="waterfall-value" x="${x + barWidth / 2}" y="${Math.max(15, y - 7)}" text-anchor="middle">${escapeHtml(label)}</text><text class="waterfall-label" x="${x + barWidth / 2}" y="201" text-anchor="middle">${escapeHtml(step.label)}</text>`;
     }).join("");
     const remaining = formatInteger(running);
-     root.innerHTML = `<svg class="waterfall-svg" viewBox="0 0 ${width} ${height}" role="img" aria-label="Distribuição da conformidade: ${formatInteger(total)} furos avaliados e ${formatInteger(exceptions)} exceções"><line class="waterfall-axis" x1="18" y1="${plotBottom}" x2="${width - 18}" y2="${plotBottom}"/>${bars}<text class="waterfall-end" x="${width - 23}" y="${yFor(running) - 8}" text-anchor="end">Restante: ${remaining}</text></svg>`;
+    root.innerHTML = `<svg class="waterfall-svg" viewBox="0 0 ${width} ${height}" role="img" aria-label="Distribuição da conformidade: ${formatInteger(total)} furos avaliados e ${formatInteger(exceptions)} exceções"><line class="waterfall-axis" x1="18" y1="${plotBottom}" x2="${width - 18}" y2="${plotBottom}"/>${bars}<text class="waterfall-end" x="${width - 23}" y="${yFor(running) - 8}" text-anchor="end">Restante: ${remaining}</text></svg>`;
+    root.querySelectorAll("[data-status-filter]").forEach((node) => {
+      node.addEventListener("click", () => applyStatusFilter(node.dataset.statusFilter));
+      node.addEventListener("keydown", (event) => {
+        if (event.key === "Enter" || event.key === " ") { event.preventDefault(); applyStatusFilter(node.dataset.statusFilter); }
+      });
+    });
+    bindChartTooltips(root);
     $("waterfall-tag").textContent = `${formatInteger(exceptions)} exceções`;
   }
 
   function renderProfile(hole) {
     if (!hole) {
       $("selected-hole").textContent = "Furo —";
-       $("profile-illustration").innerHTML = `<div class="empty-state">Selecione um furo no mapa ou na tabela para consultar o perfil.</div>`;
+      $("profile-illustration").innerHTML = `<div class="empty-state">Selecione um furo no mapa ou na tabela para consultar o perfil.</div>`;
       $("profile-data").innerHTML = "";
       return;
     }
     $("selected-hole").textContent = `Furo ${formatInteger(hole.id)}`;
     const total = Math.max(hole.depthActual || 0, hole.depthPlanned || 0, 1);
-    const bodyY = 38;
-    const bodyH = 272;
-    const bodyX = 63;
-    const bodyW = 50;
-    const stemHeight = Math.min(bodyH * .45, Math.max(16, (hole.stemmingActual || 0) / total * bodyH));
-    const subHeight = Math.min(bodyH * .18, Math.max(12, (hole.subdrill || 0) / total * bodyH));
+    const bodyY = 30;
+    const bodyH = 292;
+    const bodyX = 84;
+    const bodyW = 68;
+    const innerX = bodyX + 8;
+    const innerW = bodyW - 16;
+    const stemHeight = Number.isFinite(hole.stemmingActual) ? Math.min(bodyH * .42, Math.max(20, hole.stemmingActual / total * bodyH)) : 20;
+    const subHeight = Number.isFinite(hole.subdrill) ? Math.min(bodyH * .18, Math.max(16, hole.subdrill / total * bodyH)) : 16;
     const chargeY = bodyY + stemHeight;
-    const chargeH = Math.max(24, bodyH - stemHeight - subHeight);
-    const plannedH = Math.min(bodyH, Math.max(16, (hole.depthPlanned || total) / total * bodyH));
-    const alertStroke = hole.severity === "green" ? "#238a6e" : hole.severity === "amber" ? "#d99527" : "#ed1b2f";
-    const cartridgeCount = Math.max(3, Math.min(8, Math.round(chargeH / 32)));
-    const cartridgeHeight = chargeH / cartridgeCount;
-    const cartridges = Array.from({ length: cartridgeCount }, (_, index) => {
-      const y = chargeY + index * cartridgeHeight + 4;
-      return `<rect x="${bodyX + 8}" y="${y.toFixed(1)}" width="${bodyW - 16}" height="${Math.max(8, cartridgeHeight - 7).toFixed(1)}" rx="3" fill="rgba(255,255,255,.15)" stroke="rgba(255,255,255,.58)" stroke-width=".8"/><circle cx="${bodyX + bodyW / 2}" cy="${(y + Math.max(8, cartridgeHeight - 7) / 2).toFixed(1)}" r="2" fill="#fff" opacity=".78"/>`;
+    const toeY = bodyY + bodyH - subHeight;
+    const chargeH = Math.max(24, bodyY + bodyH - chargeY);
+    const plannedH = Number.isFinite(hole.depthPlanned) ? Math.min(bodyH, Math.max(16, hole.depthPlanned / total * bodyH)) : bodyH;
+    const cartridgeCount = Math.max(4, Math.min(8, Math.round(chargeH / 34)));
+    const cartridgeLines = Array.from({ length: cartridgeCount - 1 }, (_, index) => {
+      const y = chargeY + ((index + 1) * chargeH) / cartridgeCount;
+      return `<line x1="${innerX}" y1="${y.toFixed(1)}" x2="${innerX + innerW}" y2="${y.toFixed(1)}" stroke="#8ab7c7" stroke-width=".8" opacity=".75"/>`;
     }).join("");
+    const boosterH = Math.min(42, Math.max(24, chargeH * .18));
+    const boosterY = chargeY + chargeH - boosterH * .82;
     const plannedY = bodyY + plannedH;
     $("profile-illustration").innerHTML = `
-      <svg class="profile-svg" viewBox="0 0 196 350" role="img" aria-label="Perfil esquemático do furo ${escapeHtml(hole.id)}">
-        <defs><pattern id="profile-grid" width="14" height="14" patternUnits="userSpaceOnUse"><path d="M14 0H0V14" fill="none" stroke="#d9e4e1" stroke-width=".6"/></pattern><linearGradient id="charge-gradient" x1="0" x2="1"><stop offset="0" stop-color="#f7a12f"/><stop offset="1" stop-color="#ed1b2f"/></linearGradient></defs>
-        <rect x="4" y="5" width="188" height="340" rx="8" fill="url(#profile-grid)"/>
-         <text x="13" y="21" fill="#0d62a8" font-size="8">ID ${escapeHtml(hole.id)}</text>
-        <path d="M42 38h92" stroke="#788d8f" stroke-width="1"/><path d="M42 34v8M134 34v8" stroke="#788d8f" stroke-width="1"/>
-        <circle cx="88" cy="45" r="8" fill="#f7faf9" stroke="#1f2f38" stroke-width="1.3"/><circle cx="88" cy="45" r="3" fill="#ed1b2f"/>
-        <rect x="${bodyX}" y="${bodyY}" width="${bodyW}" height="${bodyH}" rx="${bodyW / 2}" fill="#f7faf9" stroke="#1f2f38" stroke-width="1.5"/>
-        <rect x="${bodyX + 3}" y="${bodyY + 3}" width="${bodyW - 6}" height="${Math.max(plannedH - 6, 12)}" rx="${(bodyW - 6) / 2}" fill="none" stroke="#0d62a8" stroke-width="1.5" stroke-dasharray="4 4"/>
-        <rect x="${bodyX + 7}" y="${bodyY + 6}" width="${bodyW - 14}" height="${Math.max(stemHeight - 7, 9)}" fill="#dfe6e4"/>
-        <rect x="${bodyX + 7}" y="${chargeY}" width="${bodyW - 14}" height="${chargeH}" fill="url(#charge-gradient)" opacity=".9"/>
-        <g>${cartridges}</g>
-        <rect x="${bodyX + 7}" y="${bodyY + bodyH - subHeight}" width="${bodyW - 14}" height="${subHeight}" fill="#52656b" opacity=".94"/>
-        <path d="M${bodyX + bodyW + 12} ${bodyY}h16M${bodyX + bodyW + 20} ${bodyY}v${bodyH}M${bodyX + bodyW + 12} ${bodyY + bodyH}h16" stroke="#8b9b9d" stroke-width="1"/>
-        <text x="${bodyX + bodyW + 27}" y="${bodyY + bodyH / 2}" fill="#607376" font-family="monospace" font-size="8" transform="rotate(90 ${bodyX + bodyW + 27} ${bodyY + bodyH / 2})">${withUnit(hole.depthActual, UNITS.depth)} execut.</text>
-         <path d="M${bodyX - 7} ${chargeY}H26" stroke="${alertStroke}" stroke-width="1.5"/><circle cx="26" cy="${chargeY}" r="2" fill="${alertStroke}"/><text x="9" y="${chargeY - 5}" fill="${alertStroke}" font-size="8">Carga explosiva</text>
-         <path d="M${bodyX - 7} ${bodyY + stemHeight / 2}H26" stroke="#6c7b7e" stroke-width="1"/><circle cx="26" cy="${bodyY + stemHeight / 2}" r="2" fill="#6c7b7e"/><text x="7" y="${bodyY + stemHeight / 2 - 5}" fill="#6c7b7e" font-size="8">Tampão</text>
-         <path d="M${bodyX + 5} ${plannedY}h-15" stroke="#0d62a8" stroke-width="1.2" stroke-dasharray="2 2"/><text x="11" y="${Math.min(plannedY + 4, 324)}" fill="#0d62a8" font-size="8">Planejado</text>
-         <text x="13" y="332" fill="#809392" font-size="8">Carga / tampão / subperfuração</text>
-       </svg>`;
+      <svg class="profile-svg" viewBox="0 0 236 360" role="img" aria-label="Perfil técnico do furo ${escapeHtml(hole.id)} com tampão, coluna explosiva, iniciador e subperfuração">
+        <defs>
+          <pattern id="profile-grid" width="14" height="14" patternUnits="userSpaceOnUse"><path d="M14 0H0V14" fill="none" stroke="#d9e4e1" stroke-width=".6"/></pattern>
+          <pattern id="profile-stem" width="7" height="7" patternUnits="userSpaceOnUse"><rect width="7" height="7" fill="#dfe6e4"/><path d="M-1 6 6-1M2 8 8 2" stroke="#aab9b7" stroke-width=".8"/></pattern>
+          <pattern id="profile-subdrill" width="7" height="7" patternUnits="userSpaceOnUse"><rect width="7" height="7" fill="#34474e" fill-opacity=".22"/><path d="M-1 6 6-1M2 8 8 2" stroke="#4c5e65" stroke-width=".8" opacity=".8"/></pattern>
+          <clipPath id="profile-hole-clip"><rect x="${innerX}" y="${bodyY}" width="${innerW}" height="${bodyH}"/></clipPath>
+        </defs>
+        <rect x="20" y="12" width="196" height="336" fill="url(#profile-grid)"/>
+        <path d="M42 ${bodyY}H194" stroke="#9aa9a9" stroke-width="1.2"/>
+        <path d="M42 ${toeY}H194" stroke="#9aa9a9" stroke-width="1.2" stroke-dasharray="2 3"/>
+        <g clip-path="url(#profile-hole-clip)">
+          <rect x="${innerX}" y="${bodyY}" width="${innerW}" height="${bodyH}" fill="#f7faf9"/>
+          <rect x="${innerX}" y="${bodyY}" width="${innerW}" height="${stemHeight}" fill="url(#profile-stem)"/>
+          <rect x="${innerX}" y="${chargeY}" width="${innerW}" height="${chargeH}" fill="#1767a6"/>
+          <g>${cartridgeLines}</g>
+          <rect x="${innerX}" y="${boosterY}" width="${innerW}" height="${boosterH}" fill="#df2338"/>
+          <line x1="${innerX + 5}" y1="${boosterY + 5}" x2="${innerX + 5}" y2="${boosterY + boosterH - 5}" stroke="#ffb1ba" stroke-width="1.1"/>
+          <rect x="${innerX}" y="${toeY}" width="${innerW}" height="${subHeight}" fill="url(#profile-subdrill)"/>
+        </g>
+        <rect x="${bodyX}" y="${bodyY}" width="${bodyW}" height="${bodyH}" fill="none" stroke="#1f2f38" stroke-width="1.5"/>
+        <ellipse cx="${bodyX + bodyW / 2}" cy="${bodyY}" rx="${bodyW / 2}" ry="7" fill="#f7faf9" stroke="#1f2f38" stroke-width="1.4"/>
+        <ellipse cx="${bodyX + bodyW / 2}" cy="${bodyY + bodyH}" rx="${bodyW / 2}" ry="7" fill="#4c5e65" stroke="#1f2f38" stroke-width="1.4"/>
+        <path d="M${bodyX - 12} ${plannedY}h${bodyW + 24}" stroke="#0d62a8" stroke-width="1.2" stroke-dasharray="4 4"/>
+        <path d="M${bodyX + bodyW + 14} ${bodyY}h16M${bodyX + bodyW + 22} ${bodyY}v${bodyH}M${bodyX + bodyW + 14} ${bodyY + bodyH}h16" stroke="#8b9b9d" stroke-width="1"/>
+        <path d="M${bodyX - 27} ${bodyY}h16M${bodyX - 19} ${bodyY}v${stemHeight}M${bodyX - 27} ${chargeY}h16" stroke="#8b9b9d" stroke-width="1"/>
+        <path d="M${bodyX + bodyW + 32} ${toeY}h14M${bodyX + bodyW + 39} ${toeY}v${subHeight}M${bodyX + bodyW + 32} ${bodyY + bodyH}h14" stroke="#8b9b9d" stroke-width="1"/>
+      </svg>`;
      const rows = [
        ["Profundidade executada", withUnit(hole.depthActual, UNITS.depth), hole.depthDelta],
        ["Carga carregada", withUnit(hole.chargeActual, UNITS.charge), hole.chargeDelta],
        ["Tampão executado", withUnit(hole.stemmingActual, UNITS.stemming), hole.stemmingDelta],
+       ["Subperfuração", withUnit(hole.subdrill, UNITS.depth), null],
        ["Tempo de iniciação", withUnit(hole.delay, UNITS.delay), null],
        ["Azimute / inclinação", `${formatNumber(hole.azimuth, 0)}° / ${formatNumber(hole.inclination, 0)}°`, null],
      ];
@@ -651,18 +721,20 @@
 
   function renderCompare(summary) {
     const metrics = [
-      ["Profundidade", summary.depthPlanned, summary.depthActual, "m"],
-      ["Carga", summary.chargePlanned, summary.chargeActual, "kg"],
-      ["Tampão", summary.stemmingPlanned, summary.stemmingActual, "m"],
+      ["Profundidade", summary.depthPlanned, summary.depthActual],
+      ["Carga", summary.chargePlanned, summary.chargeActual],
+      ["Tampão", summary.stemmingPlanned, summary.stemmingActual],
     ];
-    $("compare-chart").innerHTML = metrics.map(([label, planned, actual, unit]) => {
+    $("compare-chart").innerHTML = metrics.map(([label, planned, actual]) => {
       const maximum = Math.max(planned || 0, actual || 0, 1);
       const displayUnit = label === "Carga" ? UNITS.charge : label === "Tampão" ? UNITS.stemming : UNITS.depth;
       const plannedWidth = Number.isFinite(planned) ? Math.max(2, (planned / maximum) * 100) : 2;
       const actualWidth = Number.isFinite(actual) ? Math.max(2, (actual / maximum) * 100) : 2;
       const delta = Number.isFinite(planned) && planned !== 0 && Number.isFinite(actual) ? (actual - planned) / Math.abs(planned) : null;
-      return `<div class="compare-row"><span class="compare-label">${escapeHtml(label)}</span><div class="compare-track"><span class="compare-bar compare-bar--planned" style="width:${plannedWidth}%"></span><span class="compare-bar compare-bar--actual" style="width:${actualWidth}%"></span></div><span class="compare-value">${withUnit(actual, displayUnit)}<small>${formatPercent(delta)}</small></span></div>`;
+      const tooltip = `${label}: planejado ${withUnit(planned, displayUnit)} · executado ${withUnit(actual, displayUnit)} · desvio ${formatPercent(delta)}`;
+      return `<div class="compare-row" tabindex="0" role="group" aria-label="${escapeHtml(tooltip)}" data-chart-tooltip="${escapeHtml(tooltip)}"><span class="compare-label">${escapeHtml(label)}</span><div class="compare-track"><span class="compare-bar compare-bar--planned" style="width:${plannedWidth}%"></span><span class="compare-bar compare-bar--actual" style="width:${actualWidth}%"></span></div><span class="compare-value">${withUnit(actual, displayUnit)}<small>${formatPercent(delta)}</small></span></div>`;
     }).join("");
+    bindChartTooltips($("compare-chart"));
   }
 
   function renderRanking(rows) {
@@ -695,9 +767,19 @@
     const max = summary.delayMax;
     const span = max - min;
     const position = (value) => `${Math.max(0, Math.min(100, ((value - min) / span) * 100))}%`;
-    const dots = rows.filter((row) => Number.isFinite(row.delay)).sort((a, b) => a.delay - b.delay).filter((row, index) => index % Math.max(1, Math.ceil(rows.length / 70)) === 0).map((row) => `<span class="timing-dot ${row.severity === "red" ? "timing-dot--focus" : ""}" style="left:${position(row.delay)}; bottom:${row.severity === "red" ? "69px" : "57px"}" title="Furo ${escapeHtml(row.id)} · ${formatInteger(row.delay)} ms"></span>`).join("");
+    const dots = rows.filter((row) => Number.isFinite(row.delay)).sort((a, b) => a.delay - b.delay).filter((row, index) => index % Math.max(1, Math.ceil(rows.length / 70)) === 0).map((row) => {
+      const tooltip = `Furo ${row.id} · ${formatInteger(row.delay)} ms · ${row.statusLabel}`;
+      return `<span class="timing-dot ${row.severity === "red" ? "timing-dot--focus" : ""}" style="left:${position(row.delay)}; bottom:${row.severity === "red" ? "69px" : "57px"}" data-hole-id="${escapeHtml(row.id)}" data-chart-tooltip="${escapeHtml(tooltip)}" tabindex="0" role="button" aria-label="${escapeHtml(tooltip)}" title="${escapeHtml(tooltip)}"></span>`;
+    }).join("");
     const medianPosition = position(summary.delayMedian);
     $("timing-chart").innerHTML = `<div class="timing-band"></div><div class="timing-axis"></div>${dots}<span class="timing-median" style="left:calc(15px + ${medianPosition} * (100% - 30px))"></span><span class="timing-median-label" style="left:calc(15px + ${medianPosition} * (100% - 30px))">Mediana ${formatInteger(summary.delayMedian)} ms</span><span class="timing-tick" style="left:15px">${formatInteger(min)}</span><span class="timing-tick" style="left:50%">${formatInteger(min + span / 2)}</span><span class="timing-tick" style="right:0; transform:none">${formatInteger(max)}</span>`;
+    $("timing-chart").querySelectorAll("[data-hole-id]").forEach((node) => {
+      node.addEventListener("click", () => selectHole(node.dataset.holeId));
+      node.addEventListener("keydown", (event) => {
+        if (event.key === "Enter" || event.key === " ") { event.preventDefault(); selectHole(node.dataset.holeId); }
+      });
+    });
+    bindChartTooltips($("timing-chart"));
     $("timing-tag").textContent = `${formatInteger(summary.delayMin)}–${formatInteger(summary.delayMax)} ms`;
   }
 
@@ -711,11 +793,13 @@
     }
      $("holes-table-body").innerHTML = visible.map((row) => `<tr><td data-label="ID do furo"><button class="table-hole-button" type="button" data-hole-id="${escapeHtml(row.id)}">${escapeHtml(row.id)}</button></td><td data-label="Conformidade"><span class="status-pill status-pill--${severityClass(row.severity)}">${escapeHtml(row.statusLabel)}</span></td><td data-label="Profundidade planejada">${withUnit(row.depthPlanned, UNITS.depth)}</td><td data-label="Profundidade executada">${withUnit(row.depthActual, UNITS.depth)}</td><td data-label="Carga planejada">${withUnit(row.chargePlanned, UNITS.charge)}</td><td data-label="Carga carregada">${withUnit(row.chargeActual, UNITS.charge)}</td><td data-label="Tampão executado">${withUnit(row.stemmingActual, UNITS.stemming)}</td><td data-label="Tempo de iniciação">${withUnit(row.delay, UNITS.delay)}</td></tr>`).join("");
     $("holes-table-body").querySelectorAll("[data-hole-id]").forEach((node) => node.addEventListener("click", () => selectHole(node.dataset.holeId)));
-     $("table-footer").textContent = `Exibindo ${formatInteger(visible.length)} de ${formatInteger(rows.length)} furos · ordenado pela prioridade de verificação`;
+    const statusSuffix = state.statusFilter === "all" ? "" : ` · filtro: ${statusFilterLabels[state.statusFilter]}`;
+    $("table-footer").textContent = `Exibindo ${formatInteger(visible.length)} de ${formatInteger(rows.length)} furos · ordenado pela prioridade de verificação${statusSuffix}`;
   }
 
   function renderAll() {
     if (!state.dataset) return;
+    hideChartTooltip();
     const rows = getVisibleRows();
     state.filtered = rows;
     const summary = summarize(rows);
@@ -810,9 +894,9 @@
     return combineDatasets(payloads.map((payload, index) => buildDataset(payload, files[index])));
   }
 
-  async function loadSample(reason = "Base de referência local") {
+  async function loadSample(reason = "Fonte local") {
     const response = await fetch(appendParams(CONFIG.sampleUrl || "data/sample.json", { t: Date.now() }), { cache: "no-store" });
-    if (!response.ok) throw new Error("Base de referência local indisponível.");
+    if (!response.ok) throw new Error("Fonte local indisponível.");
     const payload = await response.json();
     state.dataset = buildDataset(payload, { name: payload.meta?.sourceFile || "data/sample.json" });
       state.sourceKind = reason.startsWith("Falha") ? "error" : "local";
@@ -833,7 +917,7 @@
       const endpoint = endpointFromQuery || CONFIG.driveIndexUrl || "";
       state.driveEndpoint = endpoint;
       if (!endpoint) {
-        await loadSample("Base de referência local");
+        await loadSample("Fonte local");
         return;
       }
       const listing = await fetchJson(endpoint);
@@ -864,8 +948,8 @@
       showToast(shouldCombine ? `Planilhas atualizadas: ${state.sourceFiles.length}` : `Planilha atualizada: ${state.dataset.meta.sourceFile}`);
     } catch (error) {
       state.sourceFiles = [];
-      await loadSample(`Falha na fonte · usando base local`);
-      showToast(error.message || "Fonte indisponível; base local carregada.", true);
+      await loadSample(`Falha na fonte · usando fonte local`);
+      showToast(error.message || "Fonte indisponível; fonte local carregada.", true);
     } finally {
       state.loading = false;
       $("refresh-data").disabled = false;
@@ -898,6 +982,7 @@
     $("clear-filters").addEventListener("click", () => {
       ["plan-filter", "type-filter", "date-filter"].forEach((id) => { $(id).value = "all"; });
       $("hole-search").value = "";
+      state.statusFilter = "all";
       renderAll();
     });
     $("file-select").addEventListener("change", (event) => loadSource(event.target.value));

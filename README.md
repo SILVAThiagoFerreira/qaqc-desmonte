@@ -14,6 +14,10 @@ O painel apresenta a posição dos furos, o perfil de carregamento selecionado,
 a comparação entre parâmetros planejados e executados, a distribuição dos
 tempos de iniciação e o registro detalhado dos furos.
 
+Os gráficos são operacionais: pontos do mapa, da dispersão e da distribuição
+dos tempos podem ser focados, sobrevoados e selecionados para consultar o
+furo. As barras de classificação filtram a fila de verificação por status.
+
 ## Vocabulário do painel
 
 A interface adota a terminologia de engenharia de perfuração e desmonte:
@@ -109,7 +113,8 @@ campos obrigatórios e a unicidade dos IDs.
 Também é necessário abrir a aplicação servida por HTTP e conferir:
 
 - carregamento da base, indicadores e gráficos;
-- filtros, seleção de furos e tabela;
+- filtros, seleção de furos, tooltips e tabela;
+- filtro por status acionado pela distribuição da conformidade;
 - acentuação, capitalização e mensagens de estado;
 - comportamento em desktop e em viewport móvel;
 - ausência de overflow horizontal e de erros no console.
