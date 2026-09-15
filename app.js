@@ -15,6 +15,7 @@
     sourceKind: "local",
     sourceLabel: "Fonte local",
     statusFilter: "all",
+    rangeFilters: {},
   };
 
   const $ = (id) => document.getElementById(id);
@@ -23,6 +24,19 @@
   const percentFormat = new Intl.NumberFormat("pt-BR", { maximumFractionDigits: 1, signDisplay: "always" });
   const rateFormat = new Intl.NumberFormat("pt-BR", { maximumFractionDigits: 1 });
   const statusFilterLabels = { all: "Todos os furos", green: "Conforme", amber: "Em revisão", red: "Fora da faixa" };
+  const rangeDefinitions = [
+    { key: "depthPlanned", label: "Profundidade planejada", unit: UNITS.depth, step: 0.01, digits: 2 },
+    { key: "depthActual", label: "Profundidade executada", unit: UNITS.depth, step: 0.01, digits: 2 },
+    { key: "chargePlanned", label: "Carga planejada", unit: UNITS.charge, step: 0.1, digits: 1 },
+    { key: "chargeActual", label: "Carga carregada", unit: UNITS.charge, step: 0.1, digits: 1 },
+    { key: "stemmingPlanned", label: "Tampão planejado", unit: UNITS.stemming, step: 0.1, digits: 1 },
+    { key: "stemmingActual", label: "Tampão executado", unit: UNITS.stemming, step: 0.1, digits: 1 },
+    { key: "subdrill", label: "Subperfuração", unit: UNITS.stemming, step: 0.1, digits: 1 },
+    { key: "diameter", label: "Diâmetro", unit: UNITS.diameter, step: 0.1, digits: 1 },
+    { key: "delay", label: "Tempo de iniciação", unit: UNITS.delay, step: 1, digits: 0 },
+    { key: "azimuth", label: "Azimute", unit: "°", step: 1, digits: 0 },
+    { key: "inclination", label: "Inclinação", unit: "°", step: 1, digits: 0 },
+  ];
 
   const requiredFields = [
     ["id", ["id", "furo", "numero do furo", "n do furo"]],
@@ -238,6 +252,7 @@
       rawIndex,
       id: toNumber(read(["id", "furo", "numero do furo", "n do furo"])),
       plan: String(read(["plano", "plan"]) ?? "N/D").trim(),
+      planName: String(read(["nome plano", "nome do plano", "plan name"]) ?? "").trim(),
       type: String(read(["tipo", "type"]) ?? "N/D").trim(),
       date: String(read(["data", "date"]) ?? "").trim(),
       time: String(read(["horario", "hora", "time"]) ?? "").trim(),
@@ -373,17 +388,23 @@
 
   function getVisibleRows() {
     if (!state.dataset) return [];
-    const plan = $("plan-filter").value;
     const type = $("type-filter").value;
     const date = $("date-filter").value;
+    const planQuery = normalizeText($("plan-search").value);
     const query = $("hole-search").value.trim().toLowerCase();
     return state.dataset.holes.filter((row) => {
-      const matchesPlan = plan === "all" || row.plan === plan;
+      const matchesPlan = !planQuery || normalizeText(`${row.plan} ${row.planName || ""}`).includes(planQuery);
       const matchesType = type === "all" || row.type === type;
       const matchesDate = date === "all" || dateKey(row.date) === date;
       const matchesStatus = state.statusFilter === "all" || row.severity === state.statusFilter;
       const matchesQuery = !query || String(row.id).toLowerCase().includes(query);
-      return matchesPlan && matchesType && matchesDate && matchesStatus && matchesQuery;
+      const matchesRanges = rangeDefinitions.every((definition) => {
+        const selected = state.rangeFilters[definition.key];
+        if (!selected || !selected.active) return true;
+        const value = row[definition.key];
+        return Number.isFinite(value) && value >= selected.low && value <= selected.high;
+      });
+      return matchesPlan && matchesType && matchesDate && matchesStatus && matchesQuery && matchesRanges;
     });
   }
 
@@ -395,9 +416,104 @@
 
   function populateFilters() {
     const holes = state.dataset?.holes || [];
-    setSelectOptions($("plan-filter"), [...new Set(holes.map((row) => row.plan))].sort(), "Todos os planos de fogo");
     setSelectOptions($("type-filter"), [...new Set(holes.map((row) => row.type))].sort(), "Todos os tipos de desmonte", formatTypeLabel);
     setSelectOptions($("date-filter"), [...new Set(holes.map((row) => dateKey(row.date)))].sort(), "Todas as datas de desmonte");
+    setSelectOptions($("status-filter"), ["green", "amber", "red"], "Todos os status", (value) => statusFilterLabels[value]);
+    $("status-filter").value = Object.hasOwn(statusFilterLabels, state.statusFilter) ? state.statusFilter : "all";
+    renderNumericFilters(holes);
+  }
+
+  function formatRangeValue(value, definition) {
+    if (!Number.isFinite(value)) return "N/D";
+    return `${formatNumber(value, definition.digits)}${definition.unit ? ` ${definition.unit}` : ""}`;
+  }
+
+  function getRangeMetadata(rows, definition) {
+    const values = rows.map((row) => row[definition.key]).filter(Number.isFinite);
+    if (values.length < 2) return null;
+    const min = Math.min(...values);
+    const max = Math.max(...values);
+    if (!(max > min)) return null;
+    return { min, max };
+  }
+
+  function syncRangeControl(definition) {
+    const selected = state.rangeFilters[definition.key];
+    const root = document.querySelector(`[data-range-key="${definition.key}"]`);
+    if (!selected || !root) return;
+    const span = selected.max - selected.min || 1;
+    const lowPercent = ((selected.low - selected.min) / span) * 100;
+    const highPercent = ((selected.high - selected.min) / span) * 100;
+    root.querySelector(".range-input--min").value = String(selected.low);
+    root.querySelector(".range-input--max").value = String(selected.high);
+    root.querySelector(".range-fill").style.left = `${lowPercent}%`;
+    root.querySelector(".range-fill").style.width = `${Math.max(0, highPercent - lowPercent)}%`;
+    root.querySelector(".range-value").textContent = selected.active
+      ? `${formatRangeValue(selected.low, definition)} – ${formatRangeValue(selected.high, definition)}`
+      : "Todos";
+    root.querySelector(".range-min-label").textContent = formatRangeValue(selected.min, definition);
+    root.querySelector(".range-max-label").textContent = formatRangeValue(selected.max, definition);
+  }
+
+  function renderNumericFilters(rows) {
+    const container = $("numeric-filters");
+    if (!container) return;
+    const available = rangeDefinitions
+      .map((definition) => ({ definition, metadata: getRangeMetadata(rows, definition) }))
+      .filter(({ metadata }) => metadata);
+    state.rangeFilters = {};
+    available.forEach(({ definition, metadata }) => {
+      state.rangeFilters[definition.key] = {
+        min: metadata.min,
+        max: metadata.max,
+        low: metadata.min,
+        high: metadata.max,
+        active: false,
+      };
+    });
+    container.innerHTML = available.length
+      ? available.map(({ definition, metadata }) => `
+        <details class="range-filter" data-range-key="${definition.key}"${definition.key === "depthActual" ? " open" : ""}>
+          <summary class="range-filter__summary">
+            <span class="field-label">${escapeHtml(definition.label)}</span>
+            <output class="range-value" for="${definition.key}-min ${definition.key}-max">Todos</output>
+          </summary>
+          <div class="range-filter__body">
+            <div class="range-control">
+              <div class="range-track" aria-hidden="true"><span class="range-fill"></span></div>
+              <input class="range-input range-input--min" id="${definition.key}-min" type="range" min="${metadata.min}" max="${metadata.max}" step="${definition.step}" value="${metadata.min}" aria-label="Limite inferior: ${escapeHtml(definition.label)}">
+              <input class="range-input range-input--max" id="${definition.key}-max" type="range" min="${metadata.min}" max="${metadata.max}" step="${definition.step}" value="${metadata.max}" aria-label="Limite superior: ${escapeHtml(definition.label)}">
+            </div>
+            <div class="range-limits"><span class="range-min-label">${escapeHtml(formatRangeValue(metadata.min, definition))}</span><span class="range-max-label">${escapeHtml(formatRangeValue(metadata.max, definition))}</span></div>
+          </div>
+        </details>`).join("")
+      : `<div class="filter-empty">Não há colunas numéricas com variação neste recorte.</div>`;
+
+    available.forEach(({ definition }) => {
+      const root = container.querySelector(`[data-range-key="${definition.key}"]`);
+      root.querySelectorAll(".range-input").forEach((input) => {
+        input.addEventListener("input", (event) => {
+          const selected = state.rangeFilters[definition.key];
+          const value = Number(event.target.value);
+          if (event.target.classList.contains("range-input--min")) selected.low = Math.min(value, selected.high);
+          else selected.high = Math.max(value, selected.low);
+          selected.active = selected.low > selected.min || selected.high < selected.max;
+          syncRangeControl(definition);
+          renderAll();
+        });
+      });
+      syncRangeControl(definition);
+    });
+  }
+
+  function resetRangeFilters() {
+    Object.entries(state.rangeFilters).forEach(([key, selected]) => {
+      selected.low = selected.min;
+      selected.high = selected.max;
+      selected.active = false;
+      const definition = rangeDefinitions.find((item) => item.key === key);
+      if (definition) syncRangeControl(definition);
+    });
   }
 
   function renderHeroGraphic() {
@@ -417,16 +533,6 @@
   }
 
   function renderSourceUi() {
-    const select = $("file-select");
-    const allOption = state.sourceFiles.length > 1 ? `<option value="all">Todas as planilhas (${state.sourceFiles.length})</option>` : "";
-    select.innerHTML = state.sourceFiles.length
-      ? allOption + state.sourceFiles.map((file) => `<option value="${escapeHtml(file.id)}">${escapeHtml(file.name)}</option>`).join("")
-      : `<option value="local">Fonte local</option>`;
-    select.disabled = !state.sourceFiles.length;
-    if (state.selectedFileId === "all" && state.sourceFiles.length > 1) select.value = "all";
-    else if (state.selectedFileId && state.sourceFiles.some((file) => file.id === state.selectedFileId)) select.value = state.selectedFileId;
-    const markClass = state.sourceKind === "remote" ? "status-mark--remote" : state.sourceKind === "error" ? "status-mark--warn" : "status-mark--local";
-    $("source-status").innerHTML = `<span class="status-mark ${markClass}" aria-hidden="true"></span><span>${escapeHtml(state.sourceLabel)}</span>`;
     $("top-status").textContent = state.syncing
       ? "Atualizando dados"
       : state.sourceKind === "remote" ? "Drive conectado" : state.sourceKind === "error" ? "Fonte alternativa" : "Fonte carregada";
@@ -506,6 +612,8 @@
   function applyStatusFilter(value) {
     if (!Object.hasOwn(statusFilterLabels, value)) return;
     state.statusFilter = value;
+    const statusSelect = $("status-filter");
+    if (statusSelect) statusSelect.value = value;
     renderAll();
     if (value !== "all") $("table-title")?.scrollIntoView({ behavior: "smooth", block: "start" });
     showToast(`Filtro aplicado: ${statusFilterLabels[value]}`);
@@ -912,7 +1020,7 @@
     if (!response.ok) throw new Error("Fonte local indisponível.");
     const payload = await response.json();
     state.dataset = buildDataset(payload, { name: payload.meta?.sourceFile || "data/sample.json" });
-      state.sourceKind = reason.startsWith("Falha") ? "error" : "local";
+    state.sourceKind = reason.startsWith("Falha") ? "error" : "local";
     state.sourceLabel = reason;
     state.selectedFileId = "";
     populateFilters();
@@ -1034,15 +1142,21 @@
 
   function bindEvents() {
     $("refresh-data").addEventListener("click", () => loadSource(state.selectedFileId));
-    ["plan-filter", "type-filter", "date-filter"].forEach((id) => $(id).addEventListener("change", renderAll));
-    $("hole-search").addEventListener("input", renderAll);
-    $("clear-filters").addEventListener("click", () => {
-      ["plan-filter", "type-filter", "date-filter"].forEach((id) => { $(id).value = "all"; });
-      $("hole-search").value = "";
-      state.statusFilter = "all";
+    ["type-filter", "date-filter"].forEach((id) => $(id).addEventListener("change", renderAll));
+    $("plan-search").addEventListener("input", renderAll);
+    $("status-filter").addEventListener("change", (event) => {
+      state.statusFilter = event.target.value;
       renderAll();
     });
-    $("file-select").addEventListener("change", (event) => loadSource(event.target.value));
+    $("hole-search").addEventListener("input", renderAll);
+    $("clear-filters").addEventListener("click", () => {
+      ["type-filter", "date-filter", "status-filter"].forEach((id) => { $(id).value = "all"; });
+      $("plan-search").value = "";
+      $("hole-search").value = "";
+      state.statusFilter = "all";
+      resetRangeFilters();
+      renderAll();
+    });
     $("selected-hole").addEventListener("click", () => {
       const row = state.dataset?.holes.find((hole) => String(hole.id) === String(state.selectedHoleId));
       if (row) showToast(`Furo ${row.id} · ${row.statusLabel}`);

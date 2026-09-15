@@ -7,7 +7,7 @@
     <meta name="description" content="QA/QC de perfuração e desmonte: conformidade operacional, desvios e rastreabilidade por furo.">
     <title>QA/QC de Perfuração e Desmonte</title>
     <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' fill='%23172a32'/%3E%3Cpath d='M14 44 32 14l18 30H38l-6-11-6 11H14Z' fill='%23df2338'/%3E%3C/svg%3E">
-    <link rel="stylesheet" href="styles.css?v=1.5.0">
+    <link rel="stylesheet" href="styles.css?v=1.6.0">
   </head>
   <body>
     <header class="topbar">
@@ -19,39 +19,45 @@
       <div class="topbar__context">
         <span class="live-dot" aria-hidden="true"></span>
         <span id="top-status">Carregando dados</span>
-        <span class="topbar__version">v1.5.0</span>
+        <span class="topbar__version">v1.6.0</span>
         <button class="topbar__button" id="refresh-data" type="button">Atualizar dados</button>
       </div>
     </header>
 
     <main class="app-shell">
-      <aside class="control-rail" aria-label="Fonte e filtros da análise">
+      <aside class="control-rail" aria-label="Filtros da análise">
         <div class="rail-heading">
           <span class="eyebrow">Garantia e Controle de Qualidade</span>
-          <h2>Fonte e filtros</h2>
+          <h2>Filtros da análise</h2>
         </div>
 
-        <section class="rail-section rail-source" aria-labelledby="source-title">
-          <div class="section-label" id="source-title">Fonte de dados</div>
-          <label class="field-label" for="file-select">Planilha em análise</label>
-          <select id="file-select" class="control-select" disabled>
-            <option>Fonte local</option>
-          </select>
-          <div class="source-status" id="source-status" role="status" aria-live="polite">
-            <span class="status-mark status-mark--local" aria-hidden="true"></span>
-            <span>Dados carregados</span>
-          </div>
-        </section>
-
         <section class="rail-section" aria-labelledby="filter-title">
-          <div class="section-label" id="filter-title">Recorte</div>
-          <label class="field-label" for="plan-filter">Plano de fogo</label>
-          <select id="plan-filter" class="control-select"></select>
+          <div class="section-label" id="filter-title">Recorte operacional</div>
+          <label class="field-label" for="plan-search">Plano de fogo</label>
+          <label class="search-field search-field--rail" for="plan-search">
+            <span class="sr-only">Buscar plano de fogo por nome ou código</span>
+            <input id="plan-search" type="search" placeholder="Nome ou código do plano" autocomplete="off">
+          </label>
           <label class="field-label" for="type-filter">Tipo de desmonte</label>
           <select id="type-filter" class="control-select"></select>
           <label class="field-label" for="date-filter">Data do desmonte</label>
           <select id="date-filter" class="control-select"></select>
+          <label class="field-label" for="status-filter">Conformidade</label>
+          <select id="status-filter" class="control-select">
+            <option value="all">Todos os status</option>
+            <option value="green">Conforme</option>
+            <option value="amber">Em revisão</option>
+            <option value="red">Fora da faixa</option>
+          </select>
           <button class="text-button" id="clear-filters" type="button">Restaurar filtros</button>
+        </section>
+
+        <section class="rail-section rail-section--ranges" aria-labelledby="numeric-title">
+          <div class="section-label" id="numeric-title">Intervalos numéricos</div>
+          <p class="filter-help">Arraste os dois marcadores para definir a faixa de cada coluna.</p>
+          <div id="numeric-filters" class="numeric-filters" aria-live="polite">
+            <div class="filter-empty">Carregando intervalos...</div>
+          </div>
         </section>
 
         <section class="rail-section rail-note" aria-labelledby="method-title">
@@ -246,8 +252,8 @@
     <div class="toast" id="toast" role="status" aria-live="polite"></div>
     <div class="chart-tooltip" id="chart-tooltip" role="status" aria-live="polite" aria-hidden="true"></div>
 
-    <script src="vendor/xlsx.full.min.js?v=1.5.0"></script>
-    <script src="config.js?v=1.5.0"></script>
-    <script src="app.js?v=1.5.0"></script>
+    <script src="vendor/xlsx.full.min.js?v=1.6.0"></script>
+    <script src="config.js?v=1.6.0"></script>
+    <script src="app.js?v=1.6.0"></script>
   </body>
 </html>

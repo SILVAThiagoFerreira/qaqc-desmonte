@@ -89,9 +89,34 @@ O script lê apenas arquivos `.xlsx`, `.xls` e `.csv` filhos diretos da pasta
 configurada. A atualização não exige novo deploy do GitHub Pages quando o
 conteúdo de uma planilha é alterado no Drive.
 
+O seletor de arquivo não é exposto na interface operacional. O dashboard
+combina automaticamente as planilhas encontradas na pasta configurada; a
+origem continua sendo atualizada pelo botão **Atualizar dados** no cabeçalho e
+pelo polling periódico.
+
 O endpoint retorna a planilha em base64 para preservar a leitura privada da
 fonte no servidor Apps Script. Não coloque colunas sensíveis no mesmo arquivo
 se a URL do dashboard for pública.
+
+## Filtros operacionais
+
+A barra lateral concentra o recorte da análise em controles curtos e
+combináveis:
+
+- busca por nome ou código do plano de fogo;
+- tipo de desmonte, data do desmonte e classificação de conformidade;
+- intervalos numéricos com dois marcadores arrastáveis, exibidos apenas para
+  colunas com variação real no recorte carregado e organizados em painéis
+  compactos; a profundidade executada fica aberta como referência inicial.
+
+Os intervalos atualmente disponíveis incluem profundidade planejada e
+executada, carga planejada e carregada, tampão planejado e executado e tempo
+de iniciação, quando essas colunas apresentam valores distintos. Os gráficos,
+indicadores, mapa e tabela são recalculados em conjunto a cada alteração. O
+campo de busca por ID do furo permanece disponível na tabela para uma consulta
+pontual. Quando a origem disponibiliza uma coluna específica de nome do plano,
+a busca também a utiliza; caso contrário, o código da coluna `Plano` permanece
+como identificador exibido.
 
 ## Desenvolvimento local
 
