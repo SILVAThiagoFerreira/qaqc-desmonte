@@ -62,20 +62,29 @@ de `Plano_Fogo_Realizado_PP550926.xlsx`. Ele contém 262 furos do plano 550926,
 com profundidade planejada e executada, cargas, tampão, cotas, coordenadas e
 tempos de iniciação.
 
-O workbook original não é publicado. A base reduzida permite manter o site
-funcional antes da ativação da fonte operacional do Drive.
+O workbook original não é publicado. A base reduzida permanece versionada como
+fallback operacional para situações em que a ponte remota do Drive esteja
+temporariamente indisponível.
 
 ## Atualização pelo Google Drive
+
+A pasta operacional já está vinculada ao endpoint publicado em
+`config.js`. O carregamento inicial, o botão **Atualizar dados** e o polling de
+cinco minutos consultam essa ponte e reprocessam os arquivos encontrados na
+pasta configurada. A base local só é usada se o endpoint remoto estiver
+indisponível, com o status do dashboard sinalizando a fonte alternativa.
+
+Para recriar a ponte em outra conta ou ambiente:
 
 1. Crie um projeto vazio no Google Apps Script.
 2. Cole [`integrations/google-drive-sync/Code.gs`](integrations/google-drive-sync/Code.gs).
 3. Publique como Web app, executando como o proprietário, com acesso para
-   qualquer pessoa que possua o link.
-4. Informe a URL `/exec` em `driveIndexUrl`, no arquivo `config.js`.
+   qualquer pessoa.
+4. Substitua a URL `/exec` em `driveIndexUrl`, no arquivo `config.js`.
 
 O script lê apenas arquivos `.xlsx`, `.xls` e `.csv` filhos diretos da pasta
-configurada. Depois da configuração, o botão **Atualizar dados** e o polling
-de cinco minutos refazem a leitura sem exigir novo deploy do GitHub Pages.
+configurada. A atualização não exige novo deploy do GitHub Pages quando o
+conteúdo de uma planilha é alterado no Drive.
 
 O endpoint retorna a planilha em base64 para preservar a leitura privada da
 fonte no servidor Apps Script. Não coloque colunas sensíveis no mesmo arquivo

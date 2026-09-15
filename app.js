@@ -522,10 +522,20 @@
     const maxX = Math.max(...coordinateRows.map((row) => row.x));
     const minY = Math.min(...coordinateRows.map((row) => row.y));
     const maxY = Math.max(...coordinateRows.map((row) => row.y));
-    const spanX = Math.max(maxX - minX, 1);
-    const spanY = Math.max(maxY - minY, 1);
-    const xPos = (value) => pad.left + ((value - minX) / spanX) * (width - pad.left - pad.right);
-    const yPos = (value) => height - pad.bottom - ((value - minY) / spanY) * (height - pad.top - pad.bottom);
+    const dataSpanX = Math.max(maxX - minX, 1);
+    const dataSpanY = Math.max(maxY - minY, 1);
+    // Keep a deliberate internal margin around the measured extent. This
+    // prevents the selected point/ring and the outer rows from touching the
+    // plot edge while preserving the complete spatial distribution.
+    const extentPadRatio = 0.08;
+    const domainMinX = minX - dataSpanX * extentPadRatio;
+    const domainMaxX = maxX + dataSpanX * extentPadRatio;
+    const domainMinY = minY - dataSpanY * extentPadRatio;
+    const domainMaxY = maxY + dataSpanY * extentPadRatio;
+    const domainSpanX = domainMaxX - domainMinX;
+    const domainSpanY = domainMaxY - domainMinY;
+    const xPos = (value) => pad.left + ((value - domainMinX) / domainSpanX) * (width - pad.left - pad.right);
+    const yPos = (value) => height - pad.bottom - ((value - domainMinY) / domainSpanY) * (height - pad.top - pad.bottom);
     const grid = [0, .25, .5, .75, 1].map((fraction) => {
       const x = pad.left + fraction * (width - pad.left - pad.right);
       const y = height - pad.bottom - fraction * (height - pad.top - pad.bottom);
@@ -540,8 +550,8 @@
       const tooltip = `Furo ${row.id} · ${row.statusLabel} · ${row.primary?.label || "Sem parâmetro crítico"}`;
       return `${selectedRing}<circle class="hole-point hole-point--${severityClass(row.severity)}${selected ? " hole-point--selected" : ""}" cx="${x}" cy="${y}" r="${radius}" data-hole-id="${escapeHtml(row.id)}" data-chart-tooltip="${escapeHtml(tooltip)}" tabindex="0" role="button" aria-label="Furo ${escapeHtml(row.id)}, ${escapeHtml(row.statusLabel)}"><title>${escapeHtml(tooltip)}</title></circle>`;
     }).join("");
-    const labelX = [0, .5, 1].map((fraction) => `<text class="plot-label" x="${pad.left + fraction * (width - pad.left - pad.right)}" y="${height - 14}" text-anchor="middle">${formatNumber(minX + fraction * spanX, 1)}</text>`).join("");
-    const labelY = [0, .5, 1].map((fraction) => `<text class="plot-label" x="16" y="${height - pad.bottom - fraction * (height - pad.top - pad.bottom) + 3}">${formatNumber(minY + fraction * spanY, 1)}</text>`).join("");
+    const labelX = [0, .5, 1].map((fraction) => `<text class="plot-label" x="${xPos(minX + fraction * (maxX - minX))}" y="${height - 14}" text-anchor="middle">${formatNumber(minX + fraction * (maxX - minX), 1)}</text>`).join("");
+    const labelY = [0, .5, 1].map((fraction) => `<text class="plot-label" x="16" y="${yPos(minY + fraction * (maxY - minY)) + 3}">${formatNumber(minY + fraction * (maxY - minY), 1)}</text>`).join("");
     mapRoot.innerHTML = `<svg class="map-svg" viewBox="0 0 ${width} ${height}" role="img" aria-label="Mapa de ${coordinateRows.length} furos por coordenadas X e Y"><rect x="0" y="0" width="${width}" height="${height}" fill="#f5f8f7"/>${grid}<line class="plot-axis" x1="${pad.left}" y1="${height - pad.bottom}" x2="${width - pad.right}" y2="${height - pad.bottom}"/><line class="plot-axis" x1="${pad.left}" y1="${pad.top}" x2="${pad.left}" y2="${height - pad.bottom}"/>${points}${labelX}${labelY}<text class="plot-label" x="${width - 26}" y="${height - 14}" text-anchor="end">X</text><text class="plot-label" x="18" y="${pad.top - 8}">Y</text></svg>`;
     mapRoot.querySelectorAll("[data-hole-id]").forEach((node) => {
       node.addEventListener("click", () => selectHole(node.dataset.holeId));
