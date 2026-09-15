@@ -1,0 +1,12 @@
+node_modules/
+.playwright/
+.playwright-cli/
+output/
+test-results/
+coverage/
+.env
+.env.*
+
+# Source material stays local; the public site uses the reduced JSON fixture.
+MODELO DE BASE/
+VISUAL/

@@ -1,0 +1,14 @@
+{
+  "name": "qaqc-desmonte",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Dashboard operacional de QAQC de perfuração e desmonte para GitHub Pages.",
+  "type": "module",
+  "scripts": {
+    "check": "node --check app.js",
+    "test": "node tests/validate-sample.mjs"
+  },
+  "dependencies": {
+    "xlsx": "^0.18.5"
+  }
+}

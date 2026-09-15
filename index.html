@@ -1,0 +1,224 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="theme-color" content="#1f2f38">
+    <meta name="description" content="QAQC de perfuração e desmonte: leitura visual furo a furo, desvios e perfil de carga.">
+    <title>QAQC de Perfuração e Desmonte</title>
+    <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='12' fill='%231f2f38'/%3E%3Cpath d='M14 44 32 14l18 30H38l-6-11-6 11H14Z' fill='%23ed1b2f'/%3E%3C/svg%3E">
+    <link rel="stylesheet" href="styles.css">
+  </head>
+  <body>
+    <header class="topbar">
+      <div class="topbar__brand">
+        <img src="assets/enaex-white.png" alt="Enaex Brasil" class="brand-logo">
+        <span class="brand-divider" aria-hidden="true"></span>
+        <span class="brand-product">QAQC de Desmonte</span>
+      </div>
+      <div class="topbar__context">
+        <span class="live-dot" aria-hidden="true"></span>
+        <span id="top-status">Carregando fonte</span>
+        <span class="topbar__version">v1.0.0</span>
+        <button class="topbar__button" id="refresh-data" type="button">Atualizar</button>
+      </div>
+    </header>
+
+    <main class="app-shell">
+      <aside class="control-rail" aria-label="Controles da análise">
+        <div class="rail-heading">
+          <span class="eyebrow">Leitura operacional</span>
+          <h2>Configuração</h2>
+          <p>Escolha uma fonte e filtre o que precisa ser verificado.</p>
+        </div>
+
+        <section class="rail-section rail-source" aria-labelledby="source-title">
+          <div class="section-label" id="source-title"><span>01</span> Fonte</div>
+          <label class="field-label" for="file-select">Planilha em análise</label>
+          <select id="file-select" class="control-select" disabled>
+            <option>Base local de referência</option>
+          </select>
+          <div class="source-status" id="source-status" role="status" aria-live="polite">
+            <span class="status-mark status-mark--local" aria-hidden="true"></span>
+            <span>Usando a base de referência</span>
+          </div>
+        </section>
+
+        <section class="rail-section" aria-labelledby="filter-title">
+          <div class="section-label" id="filter-title"><span>02</span> Recorte</div>
+          <label class="field-label" for="plan-filter">Plano</label>
+          <select id="plan-filter" class="control-select"></select>
+          <label class="field-label" for="type-filter">Tipo de desmonte</label>
+          <select id="type-filter" class="control-select"></select>
+          <label class="field-label" for="date-filter">Data</label>
+          <select id="date-filter" class="control-select"></select>
+          <button class="text-button" id="clear-filters" type="button">Limpar filtros</button>
+        </section>
+
+        <section class="rail-section rail-note" aria-labelledby="method-title">
+          <div class="section-label" id="method-title"><span>03</span> Triagem</div>
+          <p>As faixas de atenção são visuais: profundidade ±10%, carga ±20% e tampão ±0,5 m.</p>
+          <div class="legend-stack" aria-label="Legenda de status">
+            <span><i class="legend-dot legend-dot--green"></i>Dentro da faixa</span>
+            <span><i class="legend-dot legend-dot--amber"></i>Revisar</span>
+            <span><i class="legend-dot legend-dot--red"></i>Desvio alto</span>
+          </div>
+        </section>
+
+        <div class="rail-footer">
+          <span class="rail-footer__caption">Fonte configurada</span>
+          <a href="https://drive.google.com/drive/folders/1Vj6Pdzj7in3ol35NzJCKjLAzA2w5tPOX" target="_blank" rel="noreferrer">Abrir pasta no Drive</a>
+        </div>
+      </aside>
+
+      <section class="workspace" aria-label="Dashboard de QAQC">
+        <section class="hero-panel" aria-labelledby="hero-title">
+          <div class="hero-copy">
+            <span class="eyebrow eyebrow--light">QAQC • perfuração + desmonte</span>
+            <h1 id="hero-title">O desmonte começa<br><em>no furo certo.</em></h1>
+            <p id="hero-story">Lendo profundidade, carga e tampão furo a furo para encontrar onde a execução mudou o plano.</p>
+            <div class="hero-meta">
+              <span id="hero-plan">Plano —</span>
+              <span class="meta-separator" aria-hidden="true"></span>
+              <span id="hero-date">Data —</span>
+              <span class="meta-separator" aria-hidden="true"></span>
+              <span id="hero-count">— furos</span>
+            </div>
+          </div>
+          <div class="hero-graphic" id="hero-graphic" aria-label="Ilustração da malha de furos"></div>
+        </section>
+
+        <section class="kpi-strip" aria-label="Resumo do recorte">
+          <article class="kpi-card kpi-card--lead">
+            <span class="kpi-label">Furos lidos</span>
+            <strong class="kpi-value" id="kpi-holes">—</strong>
+            <span class="kpi-foot" id="kpi-holes-foot">da fonte atual</span>
+          </article>
+          <article class="kpi-card">
+            <span class="kpi-label">Profundidade média</span>
+            <strong class="kpi-value" id="kpi-depth">—</strong>
+            <span class="kpi-foot" id="kpi-depth-foot">realizada vs. prevista</span>
+          </article>
+          <article class="kpi-card">
+            <span class="kpi-label">Carga média</span>
+            <strong class="kpi-value" id="kpi-charge">—</strong>
+            <span class="kpi-foot" id="kpi-charge-foot">realizada vs. prevista</span>
+          </article>
+          <article class="kpi-card kpi-card--attention">
+            <span class="kpi-label">Pontos para revisar</span>
+            <strong class="kpi-value" id="kpi-attention">—</strong>
+            <span class="kpi-foot" id="kpi-attention-foot">triagem visual</span>
+          </article>
+        </section>
+
+        <div class="dashboard-grid">
+          <section class="panel panel--map span-7" aria-labelledby="map-title">
+            <div class="panel-header">
+              <div>
+                <span class="eyebrow">Onde olhar primeiro</span>
+                <h2 id="map-title">A malha mostra a concentração do desvio</h2>
+              </div>
+              <span class="panel-tag" id="map-tag">—</span>
+            </div>
+            <p class="panel-caption">Cada ponto é um furo. A cor compara a execução com o previsto.</p>
+            <div class="map-frame" id="hole-map" role="img" aria-label="Mapa esquemático dos furos">
+              <div class="loading-state">Montando a malha…</div>
+            </div>
+            <div class="map-footer">
+              <span><i class="legend-dot legend-dot--green"></i>Dentro da faixa</span>
+              <span><i class="legend-dot legend-dot--amber"></i>Revisar</span>
+              <span><i class="legend-dot legend-dot--red"></i>Desvio alto</span>
+              <span class="map-hint">Clique em um furo para abrir o perfil</span>
+            </div>
+          </section>
+
+          <section class="panel panel--profile span-5" aria-labelledby="profile-title">
+            <div class="panel-header">
+              <div>
+                <span class="eyebrow">Leitura de um furo</span>
+                <h2 id="profile-title">Perfil de carga</h2>
+              </div>
+              <button class="hole-chip" id="selected-hole" type="button">Furo —</button>
+            </div>
+            <div class="profile-layout">
+              <div class="profile-illustration" id="profile-illustration" aria-label="Perfil esquemático do furo selecionado"></div>
+              <div class="profile-data" id="profile-data"></div>
+            </div>
+            <div class="profile-footnote">Esquema de leitura. Dimensões e massas vêm da planilha selecionada.</div>
+          </section>
+
+          <section class="panel panel--compare span-5" aria-labelledby="compare-title">
+            <div class="panel-header">
+              <div>
+                <span class="eyebrow">Plano × execução</span>
+                <h2 id="compare-title">A execução mudou em três pontos</h2>
+              </div>
+            </div>
+            <div id="compare-chart" class="compare-chart"></div>
+            <div class="chart-legend"><span><i class="legend-line legend-line--blue"></i>Previsto</span><span><i class="legend-line legend-line--red"></i>Realizado</span></div>
+          </section>
+
+          <section class="panel panel--ranking span-7" aria-labelledby="ranking-title">
+            <div class="panel-header">
+              <div>
+                <span class="eyebrow">Prioridade de campo</span>
+                <h2 id="ranking-title">Poucos furos puxam a revisão</h2>
+              </div>
+              <span class="panel-tag panel-tag--quiet" id="ranking-tag">—</span>
+            </div>
+            <div class="ranking-list" id="ranking-list"></div>
+          </section>
+
+          <section class="panel panel--timing span-7" aria-labelledby="timing-title">
+            <div class="panel-header">
+              <div>
+                <span class="eyebrow">Sequência de iniciação</span>
+                <h2 id="timing-title">O tempo de detonação abre uma janela</h2>
+              </div>
+              <span class="panel-tag panel-tag--quiet" id="timing-tag">—</span>
+            </div>
+            <p class="panel-caption">Distribuição dos tempos informados por furo, em milissegundos.</p>
+            <div class="timing-chart" id="timing-chart"></div>
+          </section>
+
+          <section class="panel panel--table span-12" aria-labelledby="table-title">
+            <div class="panel-header panel-header--table">
+              <div>
+                <span class="eyebrow">Registro auditável</span>
+                <h2 id="table-title">Leitura furo a furo</h2>
+              </div>
+              <label class="search-field" for="hole-search">
+                <span class="sr-only">Buscar furo</span>
+                <input id="hole-search" type="search" placeholder="Buscar ID do furo" autocomplete="off">
+              </label>
+            </div>
+            <div class="table-wrap">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Furo</th>
+                    <th>Status</th>
+                    <th>Prof. prevista</th>
+                    <th>Prof. realizada</th>
+                    <th>Carga prevista</th>
+                    <th>Carga realizada</th>
+                    <th>Tampão</th>
+                    <th>Tempo</th>
+                  </tr>
+                </thead>
+                <tbody id="holes-table-body"></tbody>
+              </table>
+            </div>
+            <div class="table-footer" id="table-footer">—</div>
+          </section>
+        </div>
+      </section>
+    </main>
+
+    <div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+    <script src="vendor/xlsx.full.min.js"></script>
+    <script src="config.js"></script>
+    <script src="app.js"></script>
+  </body>
+</html>
