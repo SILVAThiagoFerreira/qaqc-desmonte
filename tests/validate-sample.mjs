@@ -28,6 +28,8 @@ assert.match(config, /subdrill:\s*"m"/, "Subperfuração deve estar configurada 
 assert.match(macroHtml, /href="macro\.html"/, "A navegação Macro deve existir");
 assert.match(macroHtml, /id="trend-chart"/, "A página Macro deve conter o gráfico de tendência");
 assert.match(macroHtml, /id="macro-kpi-coverage"/, "A página Macro deve exibir a cobertura do QA\/QC");
+assert.match(macroHtml, /Desvio de tampão/, "A página Macro deve exibir o desvio de tampão");
 assert.match(macroJs, /function loadData\(\)/, "A página Macro deve ter atualização de dados");
+assert.match(macroJs, /stemmingAbs/, "A página Macro deve calcular o desvio absoluto do tampão");
 
 console.log(JSON.stringify({ ok: true, holes: holes.rows.length, sheets: Object.keys(payload.sheets), macro: true }));

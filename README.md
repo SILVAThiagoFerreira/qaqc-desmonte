@@ -135,7 +135,8 @@ A visão macro apresenta:
 - quantidade de desmontes e furos consolidados;
 - cobertura do QA/QC, conformidade consolidada e furos fora da faixa;
 - série histórica interativa da conformidade;
-- desvios médios de profundidade e carga, com leitura do tampão em `m`;
+- desvios médios relativos de profundidade e carga e diferença absoluta média
+  do tampão em `m`;
 - distribuição de furos conformes, em revisão e fora da faixa;
 - tabela executiva por desmonte, com data, horário, plano, tipo, contagens,
   conformidade e desvios;

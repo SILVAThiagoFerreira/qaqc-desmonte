@@ -346,6 +346,10 @@
       const values = rows.map((row) => row[field]).filter(Number.isFinite);
       return values.length ? values.reduce((sum, value) => sum + value, 0) / values.length : null;
     };
+    const averageAbsolute = (field) => {
+      const values = rows.map((row) => row[field]).filter(Number.isFinite);
+      return values.length ? values.reduce((sum, value) => sum + Math.abs(value), 0) / values.length : null;
+    };
     const first = rows[0];
     return {
       key,
@@ -366,6 +370,7 @@
       depthPct: average("depthPct"),
       chargePct: average("chargePct"),
       stemmingDelta: average("stemmingDelta"),
+      stemmingAbs: averageAbsolute("stemmingDelta"),
       rows,
     };
   }
@@ -402,7 +407,7 @@
 
   function clearMacroContent() {
     ["trend-chart", "deviation-chart", "status-chart"].forEach((id) => { $(id).innerHTML = `<div class="empty-state">Nenhum desmonte corresponde ao recorte atual.</div>`; });
-    $("macro-table-body").innerHTML = `<tr><td colspan="12"><div class="empty-state">Nenhum desmonte corresponde ao recorte atual.</div></td></tr>`;
+    $("macro-table-body").innerHTML = `<tr><td colspan="13"><div class="empty-state">Nenhum desmonte corresponde ao recorte atual.</div></td></tr>`;
     ["macro-scope", "macro-kpi-events", "macro-kpi-holes", "macro-kpi-coverage", "macro-kpi-compliance", "macro-kpi-outside", "macro-latest", "macro-previous", "macro-change", "trend-tag", "deviation-tag", "status-tag", "macro-table-tag"].forEach((id) => { if ($(id)) $(id).textContent = "—"; });
     $("macro-kpi-events-foot").textContent = "—";
     $("macro-kpi-holes-foot").textContent = "—";
@@ -451,14 +456,17 @@
       return;
     }
     const change = latest.compliance - previous.compliance;
-    const initialComparison = groups.length < 3 && latest.plan !== previous.plan;
+    const differentPlan = latest.plan !== previous.plan;
+    const differentType = latest.type !== previous.type;
+    const initialComparison = groups.length < 3 && (differentPlan || differentType);
     if (initialComparison) {
+      const comparisonReason = differentPlan && differentType ? "planos e tipos diferentes" : differentPlan ? "planos diferentes" : "tipos diferentes";
       direction.textContent = "Comparação inicial";
       direction.classList.add("macro-direction--neutral");
-      $("macro-direction-note").textContent = `${formatPercentagePoints(change)} · planos diferentes`;
+      $("macro-direction-note").textContent = `${formatPercentagePoints(change)} · ${comparisonReason}`;
       $("macro-change").textContent = formatPercentagePoints(change);
       $("macro-insight-title").textContent = "Sinal não conclusivo";
-      $("macro-insight-copy").textContent = `A conformidade variou ${formatMagnitudePoints(change)} entre os eventos ${eventContext(previous)} e ${eventContext(latest)}. Como os planos são diferentes, o resultado deve orientar o acompanhamento, mas não ser tratado como melhoria ou piora histórica comprovada.`;
+      $("macro-insight-copy").textContent = `A conformidade variou ${formatMagnitudePoints(change)} entre os eventos ${eventContext(previous)} e ${eventContext(latest)}. Como há ${comparisonReason}, o resultado deve orientar o acompanhamento, mas não ser tratado como melhoria ou piora histórica comprovada.`;
       return;
     }
     const tolerance = 0.005;
@@ -573,7 +581,7 @@
       return `${buildBar(group.depthPct, -barWidth - 2, "Desvio de profundidade", "macro-bar--depth")}${buildBar(group.chargePct, 2, "Desvio de carga", "macro-bar--charge")}<text class="macro-x-label" x="${x}" y="${height - 37}" text-anchor="middle"><tspan x="${x}" dy="0">${escapeHtml(group.plan)}</tspan><tspan x="${x}" dy="14">${escapeHtml(group.date)}</tspan></text>`;
     }).join("");
     const focus = groups.find((group) => group.key === state.selectedGroupKey) || groups[groups.length - 1];
-    const readout = focus ? `<div class="macro-deviation-readout"><span>${escapeHtml(eventContext(focus))}</span><strong>Profundidade ${formatSignedPercent(focus.depthPct)} · Carga ${formatSignedPercent(focus.chargePct)} · Tampão ${Number.isFinite(focus.stemmingDelta) ? `${formatNumber(focus.stemmingDelta)} ${UNITS.stemming}` : "N/D"}</strong></div>` : "";
+    const readout = focus ? `<div class="macro-deviation-readout"><span>${escapeHtml(eventContext(focus))}</span><strong>Profundidade ${formatSignedPercent(focus.depthPct)} · Carga ${formatSignedPercent(focus.chargePct)} · Tampão |Δ| ${Number.isFinite(focus.stemmingAbs) ? `${formatNumber(focus.stemmingAbs)} ${UNITS.stemming}` : "N/D"}</strong></div>` : "";
     root.innerHTML = `<svg class="macro-svg" viewBox="0 0 ${width} ${height}" role="img" aria-label="Desvios médios de profundidade e carga por desmonte"><g>${grid}</g><line class="macro-zero-line" x1="${margin.left}" y1="${zero}" x2="${width - margin.right}" y2="${zero}"/><text class="macro-chart-key macro-chart-key--depth" x="${margin.left}" y="15">Profundidade</text><text class="macro-chart-key macro-chart-key--charge" x="${margin.left + 110}" y="15">Carga</text>${bars}</svg>${readout}`;
     bindGroupInteractions(root);
   }
@@ -594,7 +602,7 @@
     $("macro-table-body").innerHTML = ordered.map((group) => {
       const index = groups.findIndex((item) => item.key === group.key);
       const selected = state.selectedGroupKey === group.key ? " class=\"macro-row--selected\"" : "";
-      return `<tr${selected} data-group-index="${index}"><td data-label="Data"><button class="macro-row-button" type="button" data-group-index="${index}">${escapeHtml(group.date)}</button></td><td data-label="Horário">${escapeHtml(group.time === "N/D" ? "—" : group.time)}</td><td data-label="Plano de fogo">${escapeHtml(group.plan)}</td><td data-label="Tipo">${escapeHtml(group.type === "N/D" ? "—" : group.type)}</td><td data-label="Furos">${formatInteger(group.holes)}</td><td data-label="Conformes">${formatInteger(group.within)}</td><td data-label="Em revisão">${formatInteger(group.review)}</td><td data-label="Fora da faixa">${formatInteger(group.outside)}</td><td data-label="Não avaliáveis">${formatInteger(group.notEvaluable)}</td><td data-label="Conformidade">${formatRate(group.compliance)}</td><td data-label="Desvio de profundidade">${formatSignedPercent(group.depthPct)}</td><td data-label="Desvio de carga">${formatSignedPercent(group.chargePct)}</td></tr>`;
+      return `<tr${selected} data-group-index="${index}"><td data-label="Data"><button class="macro-row-button" type="button" data-group-index="${index}">${escapeHtml(group.date)}</button></td><td data-label="Horário">${escapeHtml(group.time === "N/D" ? "—" : group.time)}</td><td data-label="Plano de fogo">${escapeHtml(group.plan)}</td><td data-label="Tipo">${escapeHtml(group.type === "N/D" ? "—" : group.type)}</td><td data-label="Furos">${formatInteger(group.holes)}</td><td data-label="Conformes">${formatInteger(group.within)}</td><td data-label="Em revisão">${formatInteger(group.review)}</td><td data-label="Fora da faixa">${formatInteger(group.outside)}</td><td data-label="Não avaliáveis">${formatInteger(group.notEvaluable)}</td><td data-label="Conformidade">${formatRate(group.compliance)}</td><td data-label="Desvio de profundidade">${formatSignedPercent(group.depthPct)}</td><td data-label="Desvio de carga">${formatSignedPercent(group.chargePct)}</td><td data-label="Desvio de tampão">${Number.isFinite(group.stemmingAbs) ? `${formatNumber(group.stemmingAbs)} ${UNITS.stemming}` : "N/D"}</td></tr>`;
     }).join("");
     $("macro-table-footer").textContent = `${formatInteger(groups.length)} ${groups.length === 1 ? "desmonte" : "desmontes"} · clique em uma linha para atualizar a leitura executiva`;
     $("macro-table-body").querySelectorAll(".macro-row-button").forEach((button) => button.addEventListener("click", () => {

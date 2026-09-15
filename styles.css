@@ -456,7 +456,7 @@ tbody tr:hover { background: #f7faf9; }
 .macro-status-values span { display: flex; gap: 6px; align-items: center; }
 .macro-status-values strong { color: var(--ink); font-family: var(--mono); font-size: 13px; }
 .macro-table-wrap { overflow-x: auto; }
-.macro-table-wrap table { min-width: 1080px; }
+.macro-table-wrap table { min-width: 1180px; }
 .macro-table-wrap tbody tr { cursor: pointer; }
 .macro-table-wrap tbody tr:hover, .macro-table-wrap tbody tr.macro-row--selected { background: var(--blue-soft); }
 .macro-row-button { padding: 0; color: var(--blue); background: transparent; border: 0; font-family: var(--mono); font-size: 11px; font-weight: 700; text-decoration: underline; text-underline-offset: 3px; }
@@ -554,7 +554,7 @@ tbody tr:hover { background: #f7faf9; }
   .macro-footer { display: block; }
   .macro-footer a { display: inline-block; margin-top: 8px; }
   .macro-table-wrap { overflow-x: auto; }
-  .macro-table-wrap table { display: table; min-width: 1080px; }
+  .macro-table-wrap table { display: table; min-width: 1180px; }
   .macro-table-wrap thead { display: table-header-group; }
   .macro-table-wrap tbody { display: table-row-group; }
   .macro-table-wrap tr { display: table-row; padding: 0; background: transparent; border: 0; }
