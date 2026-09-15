@@ -2,7 +2,7 @@
   "use strict";
 
   const CONFIG = window.QAQC_CONFIG || {};
-  const UNITS = CONFIG.units || { depth: "", charge: "unid. da fonte", stemming: "", diameter: "unid. da fonte", delay: "ms" };
+  const UNITS = CONFIG.units || { depth: "m", charge: "kg", stemming: "m", subdrill: "m", diameter: "unid. da fonte", delay: "ms" };
   const state = {
     dataset: null,
     sourceFiles: [],
@@ -31,7 +31,7 @@
     { key: "chargeActual", label: "Carga carregada", unit: UNITS.charge, step: 0.1, digits: 1 },
     { key: "stemmingPlanned", label: "Tampão planejado", unit: UNITS.stemming, step: 0.1, digits: 1 },
     { key: "stemmingActual", label: "Tampão executado", unit: UNITS.stemming, step: 0.1, digits: 1 },
-    { key: "subdrill", label: "Subperfuração", unit: UNITS.stemming, step: 0.1, digits: 1 },
+    { key: "subdrill", label: "Subperfuração", unit: UNITS.subdrill, step: 0.1, digits: 1 },
     { key: "diameter", label: "Diâmetro", unit: UNITS.diameter, step: 0.1, digits: 1 },
     { key: "delay", label: "Tempo de iniciação", unit: UNITS.delay, step: 1, digits: 0 },
     { key: "azimuth", label: "Azimute", unit: "°", step: 1, digits: 0 },
@@ -830,10 +830,10 @@
         <path d="M${bodyX + bodyW + 32} ${toeY}h14M${bodyX + bodyW + 39} ${toeY}v${subHeight}M${bodyX + bodyW + 32} ${bodyY + bodyH}h14" stroke="#8b9b9d" stroke-width="1"/>
       </svg>`;
      const rows = [
-       ["Profundidade executada", withUnit(hole.depthActual, UNITS.depth), hole.depthDelta],
-       ["Carga carregada", withUnit(hole.chargeActual, UNITS.charge), hole.chargeDelta],
-       ["Tampão executado", withUnit(hole.stemmingActual, UNITS.stemming), hole.stemmingDelta],
-       ["Subperfuração", withUnit(hole.subdrill, UNITS.depth), null],
+       ["Profundidade executada (m)", withUnit(hole.depthActual, UNITS.depth), hole.depthDelta],
+       ["Carga carregada (kg)", withUnit(hole.chargeActual, UNITS.charge), hole.chargeDelta],
+       ["Tampão executado (m)", withUnit(hole.stemmingActual, UNITS.stemming), hole.stemmingDelta],
+       ["Subperfuração (m)", withUnit(hole.subdrill, UNITS.subdrill), null],
        ["Tempo de iniciação", withUnit(hole.delay, UNITS.delay), null],
        ["Azimute / inclinação", `${formatNumber(hole.azimuth, 0)}° / ${formatNumber(hole.inclination, 0)}°`, null],
      ];
@@ -842,13 +842,13 @@
 
   function renderCompare(summary) {
     const metrics = [
-      ["Profundidade", summary.depthPlanned, summary.depthActual],
-      ["Carga", summary.chargePlanned, summary.chargeActual],
-      ["Tampão", summary.stemmingPlanned, summary.stemmingActual],
+      ["Profundidade (m)", summary.depthPlanned, summary.depthActual],
+      ["Carga (kg)", summary.chargePlanned, summary.chargeActual],
+      ["Tampão (m)", summary.stemmingPlanned, summary.stemmingActual],
     ];
     $("compare-chart").innerHTML = metrics.map(([label, planned, actual]) => {
       const maximum = Math.max(planned || 0, actual || 0, 1);
-      const displayUnit = label === "Carga" ? UNITS.charge : label === "Tampão" ? UNITS.stemming : UNITS.depth;
+      const displayUnit = label.startsWith("Carga") ? UNITS.charge : label.startsWith("Tampão") ? UNITS.stemming : UNITS.depth;
       const plannedWidth = Number.isFinite(planned) ? Math.max(2, (planned / maximum) * 100) : 2;
       const actualWidth = Number.isFinite(actual) ? Math.max(2, (actual / maximum) * 100) : 2;
       const delta = Number.isFinite(planned) && planned !== 0 && Number.isFinite(actual) ? (actual - planned) / Math.abs(planned) : null;

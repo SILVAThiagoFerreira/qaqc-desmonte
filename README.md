@@ -31,6 +31,11 @@ A interface adota a terminologia de engenharia de perfuração e desmonte:
 - `Desvio técnico`, `critério de avaliação` e `rastreabilidade` para a leitura
   de QA/QC.
 
+As unidades operacionais configuradas no painel são: profundidade, tampão e
+subperfuração em metros (`m`); carga em quilogramas (`kg`); e tempo de
+iniciação em milissegundos (`ms`). O diâmetro permanece identificado como
+unidade não informada porque a planilha atual não confirma sua convenção.
+
 Os textos foram revisados com base nos seguintes materiais fornecidos para
 referência terminológica e operacional:
 
@@ -49,7 +54,7 @@ A classificação atual é uma triagem operacional configurada no painel:
 
 - profundidade: desvio relativo de até ±10%;
 - carga: desvio relativo de até ±20%;
-- tampão: desvio absoluto de até ±0,5 na unidade da fonte.
+- tampão: desvio absoluto de até ±0,5 m.
 
 O resultado é uma indicação para verificação. Não substitui o plano de fogo,
 o procedimento operacional, a inspeção de campo ou os critérios normativos
@@ -118,6 +123,37 @@ pontual. Quando a origem disponibiliza uma coluna específica de nome do plano,
 a busca também a utiliza; caso contrário, o código da coluna `Plano` permanece
 como identificador exibido.
 
+## Visão macro para gestão
+
+A rota [`macro.html`](macro.html) permanece no mesmo repositório e no mesmo
+deploy do GitHub Pages. Ela consolida os registros por evento operacional,
+considerando data, horário, plano e tipo de desmonte, e mantém a visão por furo
+disponível na página Micro.
+
+A visão macro apresenta:
+
+- quantidade de desmontes e furos consolidados;
+- cobertura do QA/QC, conformidade consolidada e furos fora da faixa;
+- série histórica interativa da conformidade;
+- desvios médios de profundidade e carga, com leitura do tampão em `m`;
+- distribuição de furos conformes, em revisão e fora da faixa;
+- tabela executiva por desmonte, com data, horário, plano, tipo, contagens,
+  conformidade e desvios;
+- filtros independentes por plano de fogo e data do desmonte.
+
+Os pontos e barras dos gráficos podem ser selecionados por clique ou teclado
+para atualizar a leitura executiva e os valores do evento. A análise usa a
+mesma ponte do Drive e o botão **Atualizar dados** reprocessa todas as
+planilhas encontradas na pasta operacional, sem depender de arquivos locais do
+computador do usuário.
+
+Quando ainda há poucos eventos ou quando os planos não são comparáveis, o
+painel exibe **Comparação inicial** e **Sinal não conclusivo**. Isso evita
+classificar automaticamente uma diferença entre planos distintos como melhora
+ou piora do processo. À medida que novos desmontes comparáveis forem
+incorporados ao Drive, a série passa a suportar a leitura de melhora, piora ou
+estabilidade frente ao evento anterior.
+
 ## Desenvolvimento local
 
 ```powershell
@@ -145,7 +181,8 @@ git diff --check
 ```
 
 O teste valida a existência da aba `Dados dos Furos`, os 262 registros, os
-campos obrigatórios e a unicidade dos IDs.
+campos obrigatórios, a unicidade dos IDs, a configuração das unidades e a
+presença estrutural da visão macro.
 
 Também é necessário abrir a aplicação servida por HTTP e conferir:
 
@@ -156,6 +193,10 @@ Também é necessário abrir a aplicação servida por HTTP e conferir:
 - comportamento em desktop e em viewport móvel;
 - ausência de overflow horizontal e de erros no console.
 
+Na visão macro, conferir também a quantidade de eventos, o estado de
+comparabilidade, a seleção interativa dos pontos e barras, os filtros de plano
+e data e a atualização pelo Drive.
+
 ## Publicação
 
 O workflow [`.github/workflows/pages.yml`](.github/workflows/pages.yml) publica
@@ -165,6 +206,7 @@ Repositório: `SILVAThiagoFerreira/qaqc-desmonte`
 Página: <https://silvathiagoferreira.github.io/qaqc-desmonte/>
 
 A publicação só deve ser considerada concluída quando o workflow **Deploy
-QAQC dashboard to GitHub Pages** estiver concluído com sucesso e a página
-pública carregar a mesma versão de `index.html`, `styles.css`, `app.js`,
-`config.js` e `data/sample.json` do commit publicado.
+QAQC dashboard to GitHub Pages** estiver concluído com sucesso e as rotas
+públicas `/` e `/macro.html` carregarem a mesma versão de `index.html`,
+`macro.html`, `styles.css`, `app.js`, `macro.js`, `config.js` e
+`data/sample.json` do commit publicado.

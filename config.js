@@ -11,9 +11,10 @@ window.QAQC_CONFIG = {
   // The source workbook leaves most units out of the headers. Keep this block
   // explicit so the dashboard never silently invents a unit.
   units: {
-    depth: "",
-    charge: "unid. da fonte",
-    stemming: "",
+    depth: "m",
+    charge: "kg",
+    stemming: "m",
+    subdrill: "m",
     diameter: "unid. da fonte",
     delay: "ms"
   },
