@@ -71,8 +71,11 @@ temporariamente indisponível.
 A pasta operacional já está vinculada ao endpoint publicado em
 `config.js`. O carregamento inicial, o botão **Atualizar dados** e o polling de
 cinco minutos consultam essa ponte e reprocessam os arquivos encontrados na
-pasta configurada. A base local só é usada se o endpoint remoto estiver
-indisponível, com o status do dashboard sinalizando a fonte alternativa.
+pasta configurada. Para evitar uma tela vazia durante uma resposta lenta, o
+fixture local é exibido imediatamente com o status **Atualizando dados**; assim
+que a ponte responde, ele é substituído pelos dados atuais do Drive. Se a
+ponte estiver indisponível, o dashboard mantém os dados visíveis e sinaliza a
+fonte alternativa.
 
 Para recriar a ponte em outra conta ou ambiente:
 

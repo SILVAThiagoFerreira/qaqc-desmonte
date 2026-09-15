@@ -11,6 +11,7 @@
     selectedHoleId: null,
     filtered: [],
     loading: false,
+    syncing: false,
     sourceKind: "local",
     sourceLabel: "Fonte local",
     statusFilter: "all",
@@ -426,7 +427,9 @@
     else if (state.selectedFileId && state.sourceFiles.some((file) => file.id === state.selectedFileId)) select.value = state.selectedFileId;
     const markClass = state.sourceKind === "remote" ? "status-mark--remote" : state.sourceKind === "error" ? "status-mark--warn" : "status-mark--local";
     $("source-status").innerHTML = `<span class="status-mark ${markClass}" aria-hidden="true"></span><span>${escapeHtml(state.sourceLabel)}</span>`;
-    $("top-status").textContent = state.sourceKind === "remote" ? "Drive conectado" : state.sourceKind === "error" ? "Fonte alternativa" : "Fonte carregada";
+    $("top-status").textContent = state.syncing
+      ? "Atualizando dados"
+      : state.sourceKind === "remote" ? "Drive conectado" : state.sourceKind === "error" ? "Fonte alternativa" : "Fonte carregada";
   }
 
   function renderHero(summary) {
@@ -920,21 +923,45 @@
   async function loadSource(preferredFileId = "") {
     if (state.loading) return;
     state.loading = true;
+    const hadDatasetAtStart = Boolean(state.dataset);
+    const previousSourceKind = state.sourceKind;
     $("refresh-data").disabled = true;
-      $("top-status").textContent = "Atualizando dados";
     try {
       const endpointFromQuery = new URLSearchParams(window.location.search).get("drive");
       const endpoint = endpointFromQuery || CONFIG.driveIndexUrl || "";
       state.driveEndpoint = endpoint;
       if (!endpoint) {
+        state.syncing = false;
         await loadSample("Fonte local");
         return;
+      }
+
+      state.syncing = true;
+      renderSourceUi();
+      // Render the bundled fixture first so a slow Apps Script response never
+      // leaves the dashboard empty. The remote dataset replaces it as soon as
+      // the Drive listing and workbooks are available.
+      let bootstrapRendered = false;
+      if (!state.dataset) {
+        try {
+          await loadSample("Fonte local · sincronizando Drive");
+          bootstrapRendered = true;
+          state.syncing = true;
+          renderSourceUi();
+        } catch {
+          // The remote source is still attempted; the catch block below will
+          // provide the final error state if both sources are unavailable.
+        }
       }
       const listing = await fetchJson(endpoint);
       state.sourceFiles = Array.isArray(listing.files) ? listing.files : [];
       if (!state.sourceFiles.length) {
-        await loadSample("Drive conectado · nenhuma planilha encontrada");
-        state.sourceKind = "remote";
+        if (!state.dataset) await loadSample("Drive conectado · nenhuma planilha encontrada");
+        state.sourceKind = bootstrapRendered ? "error" : "remote";
+        state.sourceLabel = bootstrapRendered
+          ? "Drive conectado · nenhuma planilha encontrada · fonte local"
+          : "Drive conectado · nenhuma planilha encontrada";
+        state.syncing = false;
         renderSourceUi();
         return;
       }
@@ -953,15 +980,35 @@
         state.sourceLabel = `${file.name} · ${formatBytes(file.size)}`;
       }
       populateFilters();
+      state.syncing = false;
       renderSourceUi();
       renderAll();
       showToast(shouldCombine ? `Planilhas atualizadas: ${state.sourceFiles.length}` : `Planilha atualizada: ${state.dataset.meta.sourceFile}`);
     } catch (error) {
-      state.sourceFiles = [];
-      await loadSample(`Falha na fonte · usando fonte local`);
-      showToast(error.message || "Fonte indisponível; fonte local carregada.", true);
+      const canKeepVisibleData = hadDatasetAtStart || Boolean(state.dataset);
+      if (canKeepVisibleData) {
+        state.sourceKind = "error";
+        state.sourceLabel = previousSourceKind === "remote"
+          ? "Falha na atualização · dados anteriores mantidos"
+          : "Falha na fonte · fonte local mantida";
+        state.syncing = false;
+        renderSourceUi();
+        showToast(`${error.message || "Fonte Drive indisponível."} Dados visíveis foram mantidos.`, true);
+      } else {
+        state.sourceFiles = [];
+        try {
+          await loadSample("Falha na fonte · usando fonte local");
+        } catch {
+          state.sourceKind = "error";
+          state.sourceLabel = "Falha ao carregar as fontes";
+          state.syncing = false;
+          renderSourceUi();
+        }
+        showToast(error.message || "Fonte indisponível; fonte local carregada.", true);
+      }
     } finally {
       state.loading = false;
+      state.syncing = false;
       $("refresh-data").disabled = false;
       if (state.sourceKind !== "remote") renderSourceUi();
     }
