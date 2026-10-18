@@ -893,10 +893,9 @@
       const tooltip = `Furo ${row.id} · ${formatInteger(row.delay)} ms · ${row.statusLabel}`;
       return `<span class="timing-dot ${row.severity === "red" ? "timing-dot--focus" : ""}" style="left:${position(row.delay)}; bottom:${row.severity === "red" ? "69px" : "57px"}" data-hole-id="${escapeHtml(row.id)}" data-chart-tooltip="${escapeHtml(tooltip)}" tabindex="0" role="button" aria-label="${escapeHtml(tooltip)}" title="${escapeHtml(tooltip)}"></span>`;
     }).join("");
-    const medianPosition = position(summary.delayMedian);
-    $("timing-chart").innerHTML = `<div class="timing-band"></div><div class="timing-axis"></div>${dots}<span class="timing-median" style="left:calc(15px + ${medianPosition} * (100% - 30px))"></span><span class="timing-median-label" style="left:calc(15px + ${medianPosition} * (100% - 30px))">Mediana ${formatInteger(summary.delayMedian)} ms</span><span class="timing-tick" style="left:15px">${formatInteger(min)}</span><span class="timing-tick" style="left:50%">${formatInteger(min + span / 2)}</span><span class="timing-tick" style="right:0; transform:none">${formatInteger(max)}</span>`;
-    const medianLabel = $("timing-chart").querySelector(".timing-median-label");
-    if (medianLabel) medianLabel.style.left = `clamp(42px, calc(15px + ${medianPosition} * (100% - 30px)), calc(100% - 42px))`;
+    const medianFrac = span ? Math.max(0, Math.min(1, (summary.delayMedian - min) / span)) : 0;
+    const medianLeft = `calc(15px + (100% - 30px) * ${medianFrac})`;
+    $("timing-chart").innerHTML = `<div class="timing-band"></div><div class="timing-axis"></div>${dots}<span class="timing-median" style="left:${medianLeft}"></span><span class="timing-median-label" style="left:clamp(64px, ${medianLeft}, calc(100% - 64px))">Mediana ${formatInteger(summary.delayMedian)} ms</span><span class="timing-tick" style="left:15px">${formatInteger(min)}</span><span class="timing-tick" style="left:50%">${formatInteger(min + span / 2)}</span><span class="timing-tick" style="right:0; transform:none">${formatInteger(max)}</span>`;
     $("timing-chart").querySelectorAll("[data-hole-id]").forEach((node) => {
       node.addEventListener("click", () => selectHole(node.dataset.holeId));
       node.addEventListener("keydown", (event) => {
